@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="Tamal envuelto en hoja de maíz">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#F5A62F"/>
+      <stop offset="1" stop-color="#D2760A"/>
+    </linearGradient>
+    <linearGradient id="hoja" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFF6E4"/>
+      <stop offset="1" stop-color="#E7CE9A"/>
+    </linearGradient>
+    <clipPath id="cuerpo">
+      <ellipse cx="256" cy="256" rx="212" ry="77"/>
+    </clipPath>
+  </defs>
+
+  <rect width="512" height="512" rx="96" fill="url(#bg)"/>
+
+  <g transform="rotate(-24 256 256)">
+    <ellipse cx="264" cy="266" rx="212" ry="77" fill="#A85C00" opacity=".38"/>
+    <ellipse cx="256" cy="256" rx="212" ry="77" fill="url(#hoja)"/>
+    <g clip-path="url(#cuerpo)" stroke="#D0AE72" stroke-width="9" opacity=".85">
+      <path d="M120 160 L100 352"/>
+      <path d="M190 160 L170 352"/>
+      <path d="M260 160 L240 352"/>
+      <path d="M330 160 L310 352"/>
+      <path d="M400 160 L380 352"/>
+    </g>
+    <g clip-path="url(#cuerpo)" stroke="#B07C34" stroke-width="22" opacity=".9">
+      <path d="M92 160 L72 352"/>
+      <path d="M428 160 L408 352"/>
+    </g>
+    <ellipse cx="256" cy="256" rx="212" ry="77" fill="none" stroke="#C99F55" stroke-width="7" opacity=".55"/>
+  </g>
+</svg>
