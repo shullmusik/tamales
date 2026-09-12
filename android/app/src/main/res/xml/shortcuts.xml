@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="ventas"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/shortcut_ventas">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="io.github.shullmusik.tamalitos"
+            android:targetClass="io.github.shullmusik.tamalitos.LauncherActivity"
+            android:data="https://shullmusik.github.io/tamales/index.html?v=ventas" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="ganancias"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/shortcut_ganancias">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="io.github.shullmusik.tamalitos"
+            android:targetClass="io.github.shullmusik.tamalitos.LauncherActivity"
+            android:data="https://shullmusik.github.io/tamales/index.html?v=ganancias" />
+    </shortcut>
+</shortcuts>

@@ -1,0 +1,105 @@
+# Compila la app Android (Trusted Web Activity) en la nube y publica el APK en Releases.
+# No hace falta Android Studio ni Java en tu computadora.
+#
+# Firma permanente (recomendado): en el repo → Settings → Secrets and variables → Actions,
+# crea los secretos KEYSTORE_BASE64 y KEYSTORE_PASSWORD (ver README, sección Android).
+# Sin esos secretos el APK se firma con una llave temporal: sirve para probar, pero cada
+# compilación tendrá una firma distinta y habrá que desinstalar antes de actualizar.
+
+name: Android APK
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'android/**'
+      - '.github/workflows/android.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Código
+        uses: actions/checkout@v4
+
+      - name: Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Llave de firma
+        id: llave
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ] && [ -n "$KEYSTORE_PASSWORD" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/tamalitos.keystore"
+            echo "KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
+            echo "KEY_ALIAS=${KEY_ALIAS:-tamalitos}" >> "$GITHUB_ENV"
+            echo "KEY_PASSWORD=${KEY_PASSWORD:-$KEYSTORE_PASSWORD}" >> "$GITHUB_ENV"
+            echo "permanente=true" >> "$GITHUB_OUTPUT"
+            echo "sufijo=" >> "$GITHUB_OUTPUT"
+            echo "Firma permanente: usando el keystore de los secretos."
+          else
+            keytool -genkeypair -keystore "$RUNNER_TEMP/tamalitos.keystore" -alias tamalitos \
+              -keyalg RSA -keysize 2048 -validity 10000 -storepass temporal123 -keypass temporal123 \
+              -dname "CN=Tamalitos temporal, O=shullmusik, C=MX"
+            echo "KEYSTORE_PASSWORD=temporal123" >> "$GITHUB_ENV"
+            echo "KEY_ALIAS=tamalitos" >> "$GITHUB_ENV"
+            echo "KEY_PASSWORD=temporal123" >> "$GITHUB_ENV"
+            echo "permanente=false" >> "$GITHUB_OUTPUT"
+            echo "sufijo=-SIN-FIRMA-PERMANENTE" >> "$GITHUB_OUTPUT"
+            echo "::warning::No hay secretos KEYSTORE_BASE64 / KEYSTORE_PASSWORD: el APK se firma con una llave temporal."
+          fi
+          echo "KEYSTORE_FILE=$RUNNER_TEMP/tamalitos.keystore" >> "$GITHUB_ENV"
+
+      - name: Compilar APK y AAB
+        run: |
+          gradle -p android --no-daemon assembleRelease bundleRelease \
+            -PversionCode=${{ github.run_number }} -PversionName=2.0.${{ github.run_number }}
+
+      - name: Renombrar
+        id: out
+        run: |
+          V="2.0.${{ github.run_number }}"
+          S="${{ steps.llave.outputs.sufijo }}"
+          mkdir -p salida
+          cp android/app/build/outputs/apk/release/app-release.apk "salida/Tamalitos-v$V$S.apk"
+          cp android/app/build/outputs/bundle/release/app-release.aab "salida/Tamalitos-v$V$S.aab"
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+          ls -la salida
+
+      - name: Guardar como artefacto
+        uses: actions/upload-artifact@v4
+        with:
+          name: Tamalitos-Android-v${{ steps.out.outputs.version }}
+          path: salida/*
+
+      - name: Publicar en Releases
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: android-v${{ steps.out.outputs.version }}
+          name: Tamalitos Android v${{ steps.out.outputs.version }}
+          files: salida/*
+          body: |
+            📲 **Cómo instalar en el teléfono**
+            1. Desde el celular, descarga el archivo `.apk` de abajo.
+            2. Ábrelo; si Android pregunta, permite "instalar apps de esta fuente".
+            3. Listo: aparece el ícono naranja **Tamalitos**.
+
+            ${{ steps.llave.outputs.permanente == 'true' && '✅ Firmado con la llave permanente: las versiones nuevas se instalan encima sin desinstalar.' || '⚠️ Firmado con una llave TEMPORAL (faltan los secretos KEYSTORE_BASE64 / KEYSTORE_PASSWORD). Para actualizar habrá que desinstalar la app primero y la pantalla completa de Chrome no se activará.' }}
+
+            El `.aab` es solo para publicar en Google Play.

@@ -192,3 +192,44 @@ Al publicar cambios, **sube el número de `CACHE` en `sw.js`** para que los tel�
 
 Probado con servidor local en viewport de 375 px: carga de semilla, costeo por receta (Verde con pollo: insumos $6.74 + operación $2.40 = $9.14, 49 % de margen a $18), cambio de precio de un insumo → 4 revisiones con mensaje y sugerencia, aceptar sugerencia, edición de receta en vivo con cambio de unidad (800 g → 1.2 kg), migración de datos v1, reportes por periodo con gastos fijos y ganancia neta, punto de equilibrio con gráfico y avance del mes, texto de WhatsApp y hoja de PDF. Sin errores de consola.
 El registro del service worker no se puede ejecutar en el panel de vista previa usado para las pruebas; verificarlo en Chrome/Android sobre HTTPS.
+
+---
+
+## 8. App para Android
+
+La carpeta `android/` es un proyecto nativo tipo **Trusted Web Activity**: un APK con el ícono y el
+nombre *Tamalitos* que abre la PWA dentro de Chrome a pantalla completa. No hay lógica duplicada:
+la app Android muestra siempre la versión publicada en GitHub Pages (y funciona sin señal gracias
+al service worker). Si el teléfono no tiene Chrome, cae a un WebView.
+
+**No necesitas Android Studio.** El flujo `.github/workflows/android.yml` compila en la nube en cada
+cambio de `android/` (o a mano en *Actions → Android APK → Run workflow*) y publica el APK en
+**Releases** del repositorio, listo para descargar desde el teléfono e instalar.
+
+### Firma permanente (una sola vez)
+
+Para que las versiones nuevas se instalen encima de la anterior y Chrome abra la app sin barra de
+direcciones, el APK se firma con la llave `tamalitos.keystore` (guardada fuera del repositorio).
+En el repo → *Settings → Secrets and variables → Actions → New repository secret*:
+
+| Secreto | Valor |
+|---|---|
+| `KEYSTORE_BASE64` | contenido del archivo `keystore.base64.txt` |
+| `KEYSTORE_PASSWORD` | contenido de `password.txt` |
+
+Huella SHA-256 de esa llave (ya está en `.well-known/assetlinks.json`):
+`55:6E:9C:E8:9D:6A:07:AD:C0:71:1A:DD:58:E5:E1:3B:0F:72:4F:D5:0F:4E:39:5A:10:B0:BD:36:5E:73:F0:9C`
+
+### Pantalla completa (sin barra de Chrome)
+
+Android verifica la vinculación app ↔ sitio leyendo
+`https://shullmusik.github.io/.well-known/assetlinks.json` — en la **raíz del dominio**, no dentro
+de `/tamales/`. Para publicarlo ahí hace falta un repositorio llamado exactamente
+`shullmusik.github.io` con la carpeta `.well-known/assetlinks.json` (copia del archivo de este repo)
+y Pages activado. Sin ese archivo la app funciona igual, pero Chrome muestra su barra de
+direcciones arriba.
+
+### Google Play (opcional)
+
+Cada compilación también genera el `.aab` que pide Play Console. Requiere cuenta de desarrollador
+(pago único) y el mismo keystore.

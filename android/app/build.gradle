@@ -1,0 +1,50 @@
+plugins {
+    id 'com.android.application'
+}
+
+// La firma llega por variables de entorno desde GitHub Actions (ver .github/workflows/android.yml).
+def ksFile = System.getenv('KEYSTORE_FILE')
+def ksPass = System.getenv('KEYSTORE_PASSWORD')
+def hasKeystore = ksFile != null && ksPass != null && file(ksFile).exists()
+
+android {
+    namespace 'io.github.shullmusik.tamalitos'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'io.github.shullmusik.tamalitos'
+        minSdk 21
+        targetSdk 34
+        versionCode (project.hasProperty('versionCode') ? project.versionCode.toInteger() : 1)
+        versionName (project.hasProperty('versionName') ? project.versionName : '2.0.0')
+    }
+
+    signingConfigs {
+        release {
+            if (hasKeystore) {
+                storeFile file(ksFile)
+                storePassword ksPass
+                keyAlias System.getenv('KEY_ALIAS') ?: 'tamalitos'
+                keyPassword System.getenv('KEY_PASSWORD') ?: ksPass
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            if (hasKeystore) signingConfig signingConfigs.release
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    // Abre la PWA dentro de Chrome a pantalla completa (Trusted Web Activity);
+    // si el teléfono no tiene Chrome, cae a un WebView.
+    implementation 'com.google.androidbrowserhelper:androidbrowserhelper:2.5.0'
+}

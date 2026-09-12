@@ -1,0 +1,5 @@
+// Proyecto Android de Tamalitos (Trusted Web Activity).
+// Se compila en GitHub Actions (.github/workflows/android.yml); no hace falta Android Studio.
+plugins {
+    id 'com.android.application' version '8.5.2' apply false
+}
