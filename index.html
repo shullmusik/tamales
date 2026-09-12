@@ -14,7 +14,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
-<link rel="stylesheet" href="css/app.css">
+<link rel="stylesheet" href="css/app.css?v=2.1.0">
 </head>
 <body>
 
@@ -357,16 +357,36 @@
 <div id="printSheet" aria-hidden="true"></div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-<script src="js/core/money.js"></script>
-<script src="js/core/units.js"></script>
-<script src="js/core/store.js"></script>
-<script src="js/core/costing.js"></script>
-<script src="js/verticals/tamales.js"></script>
-<script src="js/ui/common.js"></script>
-<script src="js/ui/ventas.js"></script>
-<script src="js/ui/productos.js"></script>
-<script src="js/ui/insumos.js"></script>
-<script src="js/ui/ganancias.js"></script>
-<script src="js/app.js"></script>
+<script src="js/core/money.js?v=2.1.0"></script>
+<script src="js/core/units.js?v=2.1.0"></script>
+<script src="js/core/store.js?v=2.1.0"></script>
+<script src="js/core/costing.js?v=2.1.0"></script>
+<script src="js/verticals/tamales.js?v=2.1.0"></script>
+<script src="js/ui/common.js?v=2.1.0"></script>
+<script src="js/ui/ventas.js?v=2.1.0"></script>
+<script src="js/ui/productos.js?v=2.1.0"></script>
+<script src="js/ui/insumos.js?v=2.1.0"></script>
+<script src="js/ui/ganancias.js?v=2.1.0"></script>
+<script src="js/app.js?v=2.1.0"></script>
+<script>
+/* Autocuración: si el navegador mezcló archivos de dos versiones (caché vieja),
+   borra cachés y service workers viejos y recarga UNA vez. Los datos no se tocan. */
+(function () {
+  var ok = window.TM && TM.app && TM.app.setView && TM.views && TM.views.productos && TM.store && TM.costing && TM.units && TM.money;
+  if (ok) return;
+  var again = false;
+  try { again = !!sessionStorage.getItem('tm-heal'); sessionStorage.setItem('tm-heal', '1'); } catch (e) {}
+  if (again) {
+    document.body.insertAdjacentHTML('afterbegin',
+      '<div style="position:fixed;inset:0;z-index:999;display:grid;place-items:center;padding:24px;background:#FFFAF3;color:#241A10;font:16px system-ui;text-align:center">' +
+      '<div><p style="font-size:44px;margin:0 0 8px">🫔</p><b>No se pudo cargar la versión nueva.</b><br>Cierra la app por completo y vuelve a abrirla con internet.</div></div>');
+    return;
+  }
+  var jobs = [];
+  if (window.caches) jobs.push(caches.keys().then(function (k) { return Promise.all(k.map(function (x) { return caches.delete(x); })); }));
+  if (navigator.serviceWorker) jobs.push(navigator.serviceWorker.getRegistrations().then(function (rs) { return Promise.all(rs.map(function (r) { return r.unregister(); })); }));
+  Promise.all(jobs).catch(function () {}).then(function () { location.reload(); });
+})();
+</script>
 </body>
 </html>

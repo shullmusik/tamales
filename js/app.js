@@ -193,8 +193,24 @@ TM.app = (() => {
       deferredPrompt.userChoice.then(() => { deferredPrompt = null; $('#btnInstall').hidden = true; });
     });
     window.addEventListener('appinstalled', () => { $('#btnInstall').hidden = true; U.toast('¡Listo! Ya está en tu pantalla de inicio'); });
+
     if ('serviceWorker' in navigator) {
+      // Cuando se activa una versión nueva, la página se recarga sola una vez
+      // (solo si ya había una versión controlando: en la primera visita no).
+      const hadController = !!navigator.serviceWorker.controller;
+      let reloading = false;
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (!hadController || reloading) return;
+        reloading = true;
+        U.toast('Actualizando a la versión nueva…');
+        setTimeout(() => location.reload(), 400);
+      });
       window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch((e) => console.warn('Service worker no registrado', e)));
+    }
+
+    // Pide al navegador que NO borre los datos de esta app cuando le falte espacio.
+    if (navigator.storage && navigator.storage.persist) {
+      navigator.storage.persist().then((ok) => { if (ok) console.info('Almacenamiento persistente concedido'); }).catch(() => {});
     }
   }
 
@@ -208,9 +224,12 @@ TM.app = (() => {
     C.recompute(null);                                   // por si cambió algo con la app cerrada
     const want = new URLSearchParams(location.search).get('v');
     setView(VIEWS[want] ? want : (S.data.products.length ? 'ventas' : 'productos'));
+    TM.app.ready = true;
+    try { sessionStorage.removeItem('tm-heal'); } catch (e) { /* la autocuración de index.html puede volver a actuar */ }
   }
 
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
-
-  return { setView, render, badge, seed };
+  return { setView, render, badge, seed, init, ready: false, version: '2.1.0' };
 })();
+
+// TM.app ya existe aquí: init puede usarlo (badge, render) sin importar cuándo corra.
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', TM.app.init); else TM.app.init();

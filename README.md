@@ -186,7 +186,7 @@ Prueba local (el service worker no funciona con `file://`):
 npx --yes serve . -l 8899
 ```
 
-Al publicar cambios, **sube el número de `CACHE` en `sw.js`** para que los teléfonos ya instalados descarguen la versión nueva.
+Al publicar cambios corre `node tools/release.mjs 2.1.1` (sube la versión en `index.html`, `sw.js` y `js/app.js` a la vez): las URLs versionadas evitan que un teléfono mezcle archivos viejos y nuevos, y la app instalada se recarga sola al detectar la versión nueva.
 
 ## 7. Estado de verificación
 

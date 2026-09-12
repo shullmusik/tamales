@@ -1,49 +1,56 @@
 /* ==========================================================================
    Tamalitos — Service Worker
-   Estrategia: precache del "app shell" + stale-while-revalidate.
-   La app debe abrir aunque el puesto no tenga señal: todo lo necesario
-   se guarda en cache y los datos del negocio viven en localStorage.
-   Al publicar una versión nueva, sube CACHE una versión.
+   ---------------------------------------------------------------------------
+   Estrategia:
+   · App shell precacheado con URLs VERSIONADAS (?v=…) y descarga forzada desde
+     la red (cache:'reload'), para que nunca se mezclen archivos de dos versiones.
+   · Navegaciones (index.html): red primero, sin caché HTTP; si no hay señal,
+     la copia guardada.
+   · Archivos estáticos versionados: caché primero (son inmutables), red si faltan.
+   Al publicar una versión nueva, cambia VERSION aquí y el ?v= de index.html
+   (o corre `node tools/release.mjs <versión>`, que hace las dos cosas).
    ========================================================================== */
 
-var CACHE = 'tamalitos-v2';
+var VERSION = '2.1.0';
+var CACHE = 'tamalitos-' + VERSION;
 
 var SHELL = [
   './',
   './index.html',
-  './css/app.css',
-  './js/core/money.js',
-  './js/core/units.js',
-  './js/core/store.js',
-  './js/core/costing.js',
-  './js/verticals/tamales.js',
-  './js/ui/common.js',
-  './js/ui/ventas.js',
-  './js/ui/productos.js',
-  './js/ui/insumos.js',
-  './js/ui/ganancias.js',
-  './js/app.js',
   './manifest.webmanifest',
   './icons/icon.svg',
   './icons/icon-192.png',
   './icons/icon-512.png',
-  './icons/maskable-512.png'
+  './icons/maskable-512.png',
+  './css/app.css?v=' + VERSION,
+  './js/core/money.js?v=' + VERSION,
+  './js/core/units.js?v=' + VERSION,
+  './js/core/store.js?v=' + VERSION,
+  './js/core/costing.js?v=' + VERSION,
+  './js/verticals/tamales.js?v=' + VERSION,
+  './js/ui/common.js?v=' + VERSION,
+  './js/ui/ventas.js?v=' + VERSION,
+  './js/ui/productos.js?v=' + VERSION,
+  './js/ui/insumos.js?v=' + VERSION,
+  './js/ui/ganancias.js?v=' + VERSION,
+  './js/app.js?v=' + VERSION
 ];
 
 self.addEventListener('install', function (event) {
   event.waitUntil(
-    caches.open(CACHE)
-      .then(function (cache) { return cache.addAll(SHELL); })
-      .then(function () { return self.skipWaiting(); })
+    caches.open(CACHE).then(function (cache) {
+      // cache:'reload' salta la caché HTTP del navegador y del CDN de GitHub Pages
+      return Promise.all(SHELL.map(function (url) {
+        return cache.add(new Request(url, { cache: 'reload' }));
+      }));
+    }).then(function () { return self.skipWaiting(); })
   );
 });
 
 self.addEventListener('activate', function (event) {
   event.waitUntil(
     caches.keys().then(function (keys) {
-      return Promise.all(keys.map(function (k) {
-        return k === CACHE ? null : caches.delete(k);
-      }));
+      return Promise.all(keys.map(function (k) { return k === CACHE ? null : caches.delete(k); }));
     }).then(function () { return self.clients.claim(); })
   );
 });
@@ -51,39 +58,35 @@ self.addEventListener('activate', function (event) {
 self.addEventListener('fetch', function (event) {
   var req = event.request;
   if (req.method !== 'GET') return;
-
   var url = new URL(req.url);
-  if (url.origin !== self.location.origin) return;   // no tocamos terceros (wa.me, etc.)
+  if (url.origin !== self.location.origin) return;     // wa.me y terceros: no se tocan
 
-  // Navegaciones: red primero, cache como red de seguridad (modo avión).
+  // Navegaciones: siempre la versión más reciente de index.html; sin señal, la guardada.
   if (req.mode === 'navigate') {
     event.respondWith(
-      fetch(req)
+      fetch(new Request(req.url, { cache: 'no-cache', credentials: 'same-origin' }))
         .then(function (res) {
-          var copy = res.clone();
-          caches.open(CACHE).then(function (c) { c.put('./index.html', copy); });
+          if (res.ok) { var copy = res.clone(); caches.open(CACHE).then(function (c) { c.put('./index.html', copy); }); }
           return res;
         })
         .catch(function () {
-          return caches.match('./index.html').then(function (hit) {
-            return hit || caches.match('./');
-          });
+          return caches.match('./index.html').then(function (hit) { return hit || caches.match('./'); });
         })
     );
     return;
   }
 
-  // Recursos estáticos: responde del cache y actualiza por detrás.
+  // Estáticos: caché primero (las URLs versionadas son inmutables); si no está, red y guardar.
   event.respondWith(
     caches.match(req).then(function (hit) {
-      var net = fetch(req).then(function (res) {
-        if (res && res.status === 200 && res.type === 'basic') {
+      if (hit) return hit;
+      return fetch(req).then(function (res) {
+        if (res && res.ok && res.type === 'basic') {
           var copy = res.clone();
           caches.open(CACHE).then(function (c) { c.put(req, copy); });
         }
         return res;
-      }).catch(function () { return hit; });
-      return hit || net;
+      });
     })
   );
 });
