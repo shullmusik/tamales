@@ -498,7 +498,7 @@ select.field__input{appearance:none;-webkit-appearance:none;background-image:lin
 /* ingredientes de la receta */
 .ritems{display:flex;flex-direction:column;gap:10px;margin-bottom:12px}
 .ritem{
-  display:grid;grid-template-columns:1fr 84px 70px 44px;gap:6px;align-items:center;
+  display:grid;grid-template-columns:1fr 1.3fr 44px;gap:6px;align-items:center;
   padding:10px;border-radius:14px;background:var(--panel);border:1px solid var(--linea);
 }
 .ritem .field__input{min-height:46px;padding:8px 10px;font-size:15px}
@@ -570,5 +570,13 @@ select.field__input{appearance:none;-webkit-appearance:none;background-image:lin
 
 @media (max-width:360px){
   .tabbar__btn{font-size:10.5px}
-  .ritem{grid-template-columns:1fr 74px 64px 40px}
+  .ritem{grid-template-columns:1fr 1.3fr 40px}
 }
+
+/* ---------- v2.2: inventario, compras y medidas de cocina ---------- */
+.card__pills{display:flex;flex-wrap:wrap;gap:6px;flex:1;min-width:0}
+.btn--buy{min-height:44px;padding:0 14px;border-radius:14px;font-size:14px;background:var(--maiz-soft);color:var(--maiz-dark);flex:none}
+.btn--buy:active{background:var(--maiz);color:#fff}
+.margin-preview strong small{font-size:12px;font-weight:700;color:var(--tinta-2);margin-left:4px}
+#rMode{margin-bottom:8px}
+.ritem__unit{font-size:13.5px !important}

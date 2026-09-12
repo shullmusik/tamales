@@ -10,10 +10,51 @@ TM.costing = (() => {
 
   /* ---------------------------------------------------------- insumos */
 
-  /** Centavos por unidad base (flotante; se redondea al final de cada cálculo). */
-  function costPerBase(ins) {
+  const hasRecipe = (p) => p.recipe && p.recipe.items.length > 0 && p.recipe.yield > 0;
+
+  /** Costo de la ÚLTIMA compra por unidad base (centavos, flotante). */
+  function lastCostPerBase(ins) {
     const baseQty = TM.units.toBase(ins.buyQty, ins.buyUnit);
     return baseQty > 0 ? ins.buyPrice / baseQty : 0;
+  }
+
+  /**
+   * Centavos por unidad base con los que se costea la receta.
+   * En modo "avg" (por defecto) usa el costo PROMEDIO PONDERADO del inventario mientras
+   * haya existencia: una subida de precio entra al costo poco a poco, conforme se agota
+   * lo que se compró más barato (amortigua). Sin inventario, usa la última compra.
+   */
+  function costPerBase(ins) {
+    const mode = S().settings.costMode || 'avg';
+    if (mode === 'avg' && ins.stock > 0 && ins.avgCost > 0) return ins.avgCost;
+    return lastCostPerBase(ins);
+  }
+
+  /** Existencias: cuánto alcanza. { stock, value, pieces, product } | null si no se lleva inventario. */
+  function stockInfo(ins) {
+    if (!TM.store.tracksStock(ins)) return null;
+    let pieces = null, product = null;
+    TM.store.productsUsing(ins.id).forEach((p) => {
+      if (!p.active) return;
+      const it = p.recipe.items.find((x) => x.insumoId === ins.id);
+      if (!it || !(it.qty > 0)) return;
+      const perPiece = it.qty / (p.recipe.yield || 1);
+      const n = Math.floor(ins.stock / perPiece);
+      if (pieces == null || n < pieces) { pieces = n; product = p; }
+    });
+    return { stock: ins.stock, value: Math.round(ins.stock * ins.avgCost), pieces, product };
+  }
+
+  /** Consumo de insumos al producir `pieces` piezas de un producto: [{ins, qtyBase}]. */
+  function consumption(p, pieces) {
+    if (!hasRecipe(p) || !pieces) return [];
+    return p.recipe.items.map((it) => ({ ins: TM.store.insumo(it.insumoId), qtyBase: (it.qty * pieces) / p.recipe.yield }))
+      .filter((c) => c.ins && TM.store.tracksStock(c.ins));
+  }
+
+  /** Descuenta (delta > 0) o devuelve (delta < 0) existencias por producción registrada. */
+  function applyProduction(p, deltaPieces) {
+    consumption(p, deltaPieces).forEach((c) => TM.store.consume(c.ins.id, c.qtyBase));
   }
 
   /** Variación del último cambio de precio de un insumo: {pct, at, from, to} | null */
@@ -28,8 +69,6 @@ TM.costing = (() => {
   }
 
   /* --------------------------------------------------------- productos */
-
-  const hasRecipe = (p) => p.recipe && p.recipe.items.length > 0 && p.recipe.yield > 0;
 
   /** Costo de insumos por pieza + desglose por ingrediente. */
   function materialCost(p) {
@@ -135,7 +174,8 @@ TM.costing = (() => {
     const up = r.newCost > r.oldCost;
     const causes = r.causes.map((id) => TM.store.insumo(id)).filter(Boolean).map((i) => i.name);
     const cause = causes.length ? ` por ${up ? 'el incremento' : 'la baja'} de ${causes.join(' y ')}` : '';
-    return `El costo de <b>${p ? p.name : '?'}</b> ${up ? 'subió' : 'bajó'} de <b>${M.fmt(r.oldCost)}</b> a <b>${M.fmt(r.newCost)}</b>${cause}.`;
+    const avg = (S().settings.costMode || 'avg') === 'avg' && r.causes.some((id) => { const i = TM.store.insumo(id); return i && TM.store.tracksStock(i); }) ? ' (costo promedio del inventario)' : '';
+    return `El costo de <b>${p ? p.name : '?'}</b> ${up ? 'subió' : 'bajó'} de <b>${M.fmt(r.oldCost)}</b> a <b>${M.fmt(r.newCost)}</b>${cause}${avg}.`;
   }
 
   /* ------------------------------------------ gastos fijos y equilibrio */
@@ -249,7 +289,7 @@ TM.costing = (() => {
   }
 
   return {
-    costPerBase, lastChange, hasRecipe, materialCost, overheadCost, fixedAllocation, variableCost,
+    costPerBase, lastCostPerBase, stockInfo, consumption, applyProduction, lastChange, hasRecipe, materialCost, overheadCost, fixedAllocation, variableCost,
     unitCost, marginOf, suggestedPrice, marginPct, summary,
     recompute, acceptReview, reviewMessage,
     fixedMonthly, avgMadePerDay, breakEven, metrics, aggregate

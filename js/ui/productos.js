@@ -93,7 +93,7 @@ TM.views.productos = (() => {
     editing = id;
     draft = p ? JSON.parse(JSON.stringify(p)) : {
       name: '', emoji: TM.vertical.emojis.product[0], price: 0, costManual: null, targetMargin: null,
-      recipe: { yield: 1, items: [] }, extras: { gasPerBatch: 0, laborPerBatch: 0, packPerPiece: 0 }
+      recipe: { mode: 'batch', yield: 40, items: [] }, extras: { gasPerBatch: 0, laborPerBatch: 0, packPerPiece: 0 }
     };
     $('#sheetProductTitle').textContent = p ? `Editar ${L().product}` : `Nuevo ${L().product}`;
     $('#pDelete').hidden = !p;
@@ -126,21 +126,29 @@ TM.views.productos = (() => {
   }
 
   /* ---- receta ---- */
+  const isPiece = () => draft.recipe.mode === 'piece';
+  const perLabel = () => (isPiece() ? L().piece : L().batch);
+
   function renderReceta() {
+    const piece = isPiece();
+    $$('#rMode [data-mode]').forEach((b) => b.classList.toggle('is-on', b.dataset.mode === draft.recipe.mode));
+    $('#rYieldWrap').hidden = piece;
     $('#rYield').value = draft.recipe.yield || '';
     $('#rYieldLabel').textContent = L().pieces;
+    $('#rModeHelp').textContent = piece
+      ? `Captura lo que lleva UN ${L().product}. El costo es directo.`
+      : `Captura lo que lleva toda la ${L().batch}; la app divide el costo entre las piezas que rinde.`;
     const insumos = S.data.insumos.slice().sort((a, b) => a.name.localeCompare(b.name, 'es'));
     const rows = $('#rItems');
     if (!insumos.length) {
-      rows.innerHTML = `<p class="hint">Primero registra insumos en la pestaña <b>Insumos</b>; aquí eliges cuánto lleva cada ${L().batch}.</p>`;
+      rows.innerHTML = `<p class="hint">Aún no tienes insumos. Crea el primero aquí mismo: la app calcula el costo por gramo, mililitro o pieza.</p>`;
       $('#rAdd').hidden = true; return;
     }
     $('#rAdd').hidden = false;
     rows.innerHTML = draft.recipe.items.map((it, idx) => {
       const ins = S.insumo(it.insumoId);
       const base = ins ? ins.base : 'g';
-      const shown = UN.fromBase(it.qty, base);
-      const cost = ins ? C.costPerBase(ins) * it.qty : 0;
+      const shown = it.unit && it.shown != null ? { qty: it.shown, unit: it.unit } : UN.fromBase(it.qty, base);
       return `
       <div class="ritem" data-idx="${idx}">
         <select class="field__input ritem__ins" data-ins="${idx}" aria-label="Insumo">
@@ -148,13 +156,21 @@ TM.views.productos = (() => {
         </select>
         <input class="field__input ritem__qty" type="number" inputmode="decimal" min="0" step="any" value="${shown.qty || ''}" data-qty="${idx}" aria-label="Cantidad" placeholder="0">
         <select class="field__input ritem__unit" data-unit="${idx}" aria-label="Unidad">
-          ${UN.forBase(base).map((u) => `<option value="${u}"${u === shown.unit ? ' selected' : ''}>${u}</option>`).join('')}
+          ${UN.forBase(base).map((u) => `<option value="${u}"${u === shown.unit ? ' selected' : ''}>${UN.label(u).replace(/ \(.*\)$/, '')}</option>`).join('')}
         </select>
         <button type="button" class="ritem__del" data-del="${idx}" aria-label="Quitar ingrediente">✕</button>
-        <small class="ritem__cost">${ins ? M.fmt(Math.round(cost)) + ' por ' + L().batch : 'Insumo eliminado'}</small>
+        <small class="ritem__cost">${rowCostText(it, ins)}</small>
       </div>`;
     }).join('');
     if (!draft.recipe.items.length) rows.innerHTML = `<p class="hint">Sin ingredientes todavía. Toca «Añadir ingrediente».</p>`;
+  }
+
+  /** "$65.00 por tanda" o, con medidas de cocina, "$0.45 por tanda · = 30 g". */
+  function rowCostText(it, ins) {
+    if (!ins) return 'Insumo eliminado';
+    const cost = C.costPerBase(ins) * it.qty;
+    const eq = it.unit && UN.isKitchen(it.unit) ? ` · = ${UN.fmt(it.qty, ins.base)}` : '';
+    return `${M.fmt(Math.round(cost))} por ${perLabel()}${eq}`;
   }
 
   /* ---- operación ---- */
@@ -162,7 +178,9 @@ TM.views.productos = (() => {
     $('#oGas').value = M.input(draft.extras.gasPerBatch);
     $('#oLabor').value = M.input(draft.extras.laborPerBatch);
     $('#oPack').value = M.input(draft.extras.packPerPiece);
-    $('#oBatchLabel').textContent = L().batch;
+    $('#oBatchLabel').textContent = perLabel();
+    $('#oGasLabel').textContent = `Gas / energía por ${perLabel()}`;
+    $('#oLaborLabel').textContent = `Mano de obra por ${perLabel()}`;
     const s = S.data.settings;
     const fix = C.fixedAllocation();
     $('#oFixedNote').innerHTML = s.allocateFixed
@@ -179,7 +197,7 @@ TM.views.productos = (() => {
     const y = draft.recipe.yield || 1;
     $('#pCostBox').innerHTML = `
       <div class="costbox__rows">
-        <span>Insumos por ${L().piece}${cost.breakdown.manual ? ' (a mano)' : ` · ${L().batch} de ${y}`}</span><b>${M.fmt(cost.material)}</b>
+        <span>Insumos por ${L().piece}${cost.breakdown.manual ? ' (a mano)' : (isPiece() ? '' : ` · ${L().batch} de ${y}`)}</span><b>${M.fmt(cost.material)}</b>
         <span>Operación (gas, mano de obra, empaque)</span><b>${M.fmt(cost.overhead)}</b>
         ${cost.fixed ? `<span>Gastos fijos prorrateados</span><b>${M.fmt(cost.fixed)}</b>` : ''}
         <span class="costbox__total">Costo unitario</span><b class="costbox__total">${M.fmt(cost.total)}</b>
@@ -202,7 +220,7 @@ TM.views.productos = (() => {
     draft.targetMargin = m === '' ? null : Math.min(95, Math.max(0, Number(m) || 0));
     draft.costManual = M.cents($('#pCostManual').value);
   }
-  function readReceta() { draft.recipe.yield = Math.max(1, Math.round(Number($('#rYield').value) || 1)); }
+  function readReceta() { draft.recipe.yield = isPiece() ? 1 : Math.max(1, Math.round(Number($('#rYield').value) || 1)); }
   function readOperacion() {
     draft.extras.gasPerBatch = M.cents($('#oGas').value);
     draft.extras.laborPerBatch = M.cents($('#oLabor').value);
@@ -262,32 +280,43 @@ TM.views.productos = (() => {
     U.wireEmojiRow($('#pEmojiRow'), (e) => { draft.emoji = e; });
     ['#pPrice', '#pMargin', '#pCostManual'].forEach((s) => $(s).addEventListener('input', () => { readBasico(); renderCostBox(); }));
     $('#rYield').addEventListener('input', () => { readReceta(); renderCostBox(); });
+    $('#rMode').addEventListener('click', (ev) => {
+      const b = ev.target.closest('[data-mode]'); if (!b) return;
+      readReceta();
+      draft.recipe.mode = b.dataset.mode;
+      if (draft.recipe.mode === 'piece') draft.recipe.yield = 1;
+      else if (draft.recipe.yield <= 1) draft.recipe.yield = 40;
+      renderReceta(); renderCostBox(); U.buzz(8);
+    });
+    $('#rNewInsumo').addEventListener('click', () => {
+      readReceta();
+      TM.views.insumos.open(null, (ins) => {
+        draft.recipe.items.push({ insumoId: ins.id, qty: 0, unit: null, shown: null });
+        renderReceta(); renderCostBox();
+        const last = $$('#rItems [data-qty]').pop(); if (last) last.focus();
+      });
+    });
     ['#oGas', '#oLabor', '#oPack'].forEach((s) => $(s).addEventListener('input', () => { readOperacion(); renderCostBox(); }));
 
     // receta: filas dinámicas
     $('#rAdd').addEventListener('click', () => {
       const first = S.data.insumos[0]; if (!first) return;
       readReceta();
-      draft.recipe.items.push({ insumoId: first.id, qty: 0 });
+      draft.recipe.items.push({ insumoId: first.id, qty: 0, unit: null, shown: null });
       renderReceta(); renderCostBox();
       const last = $$('#rItems [data-qty]').pop(); if (last) last.focus();
     });
     $('#rItems').addEventListener('change', (ev) => {
       const t = ev.target;
       if (t.dataset.ins != null) {
-        const it = draft.recipe.items[+t.dataset.ins]; it.insumoId = t.value; it.qty = 0;
+        const it = draft.recipe.items[+t.dataset.ins]; it.insumoId = t.value; it.qty = 0; it.unit = null; it.shown = null;
         renderReceta(); renderCostBox(); return;
       }
       if (t.dataset.unit != null) { applyQty(+t.dataset.unit); updateRowCost(+t.dataset.unit); renderCostBox(); }
     });
     $('#rItems').addEventListener('input', (ev) => {
       const t = ev.target;
-      if (t.dataset.qty != null) {
-        applyQty(+t.dataset.qty);
-        const row = t.closest('.ritem'); const it = draft.recipe.items[+t.dataset.qty]; const ins = S.insumo(it.insumoId);
-        if (row && ins) $('.ritem__cost', row).textContent = M.fmt(Math.round(C.costPerBase(ins) * it.qty)) + ' por ' + L().batch;
-        renderCostBox();
-      }
+      if (t.dataset.qty != null) { applyQty(+t.dataset.qty); updateRowCost(+t.dataset.qty); renderCostBox(); }
     });
     $('#rItems').addEventListener('click', (ev) => {
       const d = ev.target.closest('[data-del]'); if (!d) return;
@@ -304,12 +333,14 @@ TM.views.productos = (() => {
   function applyQty(idx) {
     const row = $(`.ritem[data-idx="${idx}"]`); if (!row) return;
     const qty = $('[data-qty]', row).value, unit = $('[data-unit]', row).value;
-    draft.recipe.items[idx].qty = UN.toBase(qty, unit);
+    const it = draft.recipe.items[idx], ins = S.insumo(it.insumoId);
+    it.unit = unit; it.shown = qty === '' ? null : Number(qty);
+    it.qty = UN.toBase(qty, unit, ins);
   }
   function updateRowCost(idx) {
     const row = $(`.ritem[data-idx="${idx}"]`); if (!row) return;
-    const it = draft.recipe.items[idx], ins = S.insumo(it.insumoId);
-    if (ins) $('.ritem__cost', row).textContent = M.fmt(Math.round(C.costPerBase(ins) * it.qty)) + ' por ' + L().batch;
+    const it = draft.recipe.items[idx];
+    $('.ritem__cost', row).textContent = rowCostText(it, S.insumo(it.insumoId));
   }
 
   return { render, wire, open };

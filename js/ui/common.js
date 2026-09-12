@@ -54,6 +54,8 @@ TM.ui = (() => {
   /* ---------------------------------------------------------- hojas */
   function openSheet(id) { $(id).hidden = false; document.body.style.overflow = 'hidden'; }
   function closeSheets() { $$('.sheet').forEach((s) => { s.hidden = true; }); document.body.style.overflow = ''; }
+  /** Cierra solo una hoja (para hojas apiladas, p. ej. insumo nuevo encima de producto). */
+  function closeSheet(id) { $(id).hidden = true; if (!$$('.sheet').some((s) => !s.hidden)) document.body.style.overflow = ''; }
 
   /** Selector de emoji reutilizable (botones en fila). */
   function emojiRow(list, current) {
@@ -170,7 +172,7 @@ TM.ui = (() => {
   return {
     $, $$, esc, int, num, cssVar,
     DIAS, MESES, isoOf, todayISO, dateFromISO, shiftISO, humanDate, longDate, ago,
-    buzz, toast, openSheet, closeSheets, emojiRow, wireEmojiRow,
+    buzz, toast, openSheet, closeSheet, closeSheets, emojiRow, wireEmojiRow,
     stat, empty, pill, barChart, breakEvenChart, state
   };
 })();

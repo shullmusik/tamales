@@ -12,7 +12,8 @@
        priceStep: 50,                           // redondeo del precio sugerido (centavos): 50 = $0.50
        workDays: 26,                            // días de venta al mes (punto de equilibrio)
        allocateFixed: false,                    // ¿prorratear gastos fijos en el costo unitario?
-       expectedPerDay: 0                        // piezas/día para prorratear (0 = usar historial)
+       expectedPerDay: 0,                       // piezas/día para prorratear (0 = usar historial)
+       costMode: "avg"                          // "avg": costo promedio del inventario (amortigua) | "last": última compra
      },
      insumos: [{
        id, name, emoji,
@@ -21,12 +22,17 @@
        buyPrice: 52000,                         // centavos por esa compra
        base: "g",                               // derivado de buyUnit, se guarda por comodidad
        history: [{ at, buyPrice, buyQty, buyUnit }],   // cada cambio de precio
+       kitchen: { cdta: 6, cda: 18, taza: 130 }, // equivalencias propias de cocina (en unidad base)
+       stock: 12500,                            // existencia en unidad base (g / ml / pz)
+       avgCost: 2.61,                           // costo promedio ponderado (centavos por unidad base)
+       purchases: [{ at, qtyBase, total, buyQty, buyUnit }],   // compras registradas
        createdAt, updatedAt
      }],
      products: [{
        id, name, emoji, active,
        price: 1800,                             // precio de venta (centavos)
-       recipe: { yield: 40, items: [{ insumoId, qty }] },   // qty en unidad BASE por tanda
+       recipe: { mode: "batch", yield: 40,      // "batch": cantidades por tanda | "piece": por pieza (yield = 1)
+                 items: [{ insumoId, qty, unit, shown }] },   // qty en unidad BASE; unit/shown = como se capturó ("2 cda")
        extras: { gasPerBatch, laborPerBatch, packPerPiece },  // centavos
        costManual: null,                        // centavos; se usa si la receta está vacía
        targetMargin: null,                      // % propio; null = usa el global
@@ -49,7 +55,7 @@ TM.store = (() => {
   const blank = () => ({
     v: 2,
     vertical: 'tamales',
-    settings: { biz: '', phone: '', targetMargin: 45, priceStep: 50, workDays: 26, allocateFixed: false, expectedPerDay: 0 },
+    settings: { biz: '', phone: '', targetMargin: 45, priceStep: 50, workDays: 26, allocateFixed: false, expectedPerDay: 0, costMode: 'avg' },
     insumos: [],
     products: [],
     reviews: [],
@@ -87,14 +93,22 @@ TM.store = (() => {
     d.v = 2;
     d.settings = Object.assign(blank().settings, d.settings || {});
     d.insumos = (d.insumos || []).map((i) => Object.assign({
-      emoji: '🧺', buyUnit: 'pz', buyQty: 1, buyPrice: 0, history: [], createdAt: 0, updatedAt: 0
+      emoji: '🧺', buyUnit: 'pz', buyQty: 1, buyPrice: 0, history: [], createdAt: 0, updatedAt: 0,
+      kitchen: {},          // equivalencias propias: { cdta: 6, cda: 18, taza: 130 } en unidad base
+      stock: 0,             // existencia en unidad base
+      avgCost: 0,           // costo promedio ponderado del inventario (centavos por unidad base, flotante)
+      purchases: []         // [{ at, qtyBase, total, buyQty, buyUnit }]
     }, i, { base: TM.units.baseOf(i.buyUnit || 'pz') }));
     d.products = (d.products || []).map((p) => Object.assign({
       emoji: '🫔', active: true, price: 0, costManual: null, targetMargin: null, lastCost: 0, createdAt: 0
     }, p, {
-      recipe: Object.assign({ yield: 1, items: [] }, p.recipe || {}),
+      recipe: Object.assign({ yield: 1, mode: 'batch', items: [] }, p.recipe || {}),   // mode: 'batch' | 'piece'
       extras: Object.assign({ gasPerBatch: 0, laborPerBatch: 0, packPerPiece: 0 }, p.extras || {})
     }));
+    d.products.forEach((p) => {
+      if (p.recipe.mode === 'piece') p.recipe.yield = 1;
+      p.recipe.items = (p.recipe.items || []).map((it) => ({ insumoId: it.insumoId, qty: it.qty | 0, unit: it.unit || null, shown: it.shown == null ? null : it.shown }));
+    });
     d.reviews = d.reviews || [];
     d.fixedCosts = d.fixedCosts || [];
     d.days = d.days || {};
@@ -136,11 +150,48 @@ TM.store = (() => {
     /* insumos */
     insumo: (id) => byId(data.insumos, id),
     addInsumo(i) {
+      i = normalize({ insumos: [i] }).insumos[0];
       i.id = uid(); i.createdAt = i.updatedAt = Date.now();
-      i.base = TM.units.baseOf(i.buyUnit);
       i.history = [{ at: i.createdAt, buyPrice: i.buyPrice, buyQty: i.buyQty, buyUnit: i.buyUnit }];
       data.insumos.push(i); save(); return i;
     },
+    /**
+     * Registra una compra: sube la existencia y recalcula el costo promedio ponderado.
+     * qtyBase en unidad base, total en centavos. El "último precio" (buyPrice) se
+     * actualiza al equivalente de esta compra para la presentación habitual del insumo.
+     */
+    addPurchase(id, { qtyBase, total, at, buyQty, buyUnit }) {
+      const i = byId(data.insumos, id); if (!i || !(qtyBase > 0) || !(total >= 0)) return null;
+      const prevValue = i.stock * i.avgCost;
+      i.avgCost = (prevValue + total) / (i.stock + qtyBase);
+      i.stock += qtyBase;
+      i.purchases.push({ at: at || Date.now(), qtyBase, total, buyQty, buyUnit });
+      const packBase = TM.units.toBase(i.buyQty, i.buyUnit) || 1;
+      const packPrice = Math.round(total * packBase / qtyBase);
+      if (packPrice !== i.buyPrice) {
+        i.buyPrice = packPrice;
+        i.history.push({ at: at || Date.now(), buyPrice: packPrice, buyQty: i.buyQty, buyUnit: i.buyUnit });
+      }
+      i.updatedAt = Date.now();
+      save(); return i;
+    },
+    /** Descuenta (o devuelve, si qtyBase < 0) existencia. Nunca queda negativa. */
+    consume(id, qtyBase) {
+      const i = byId(data.insumos, id); if (!i) return;
+      // sin redondear a enteros: consumir 1.1 hojas por pieza, pieza a pieza, no debe perder décimas
+      i.stock = Math.max(0, Math.round((i.stock - qtyBase) * 1000) / 1000);
+      save();
+    },
+    /** Existencia inicial al empezar a llevar inventario, valuada al precio de la última compra. */
+    initStock(id, qtyBase, costPerBase) {
+      const i = byId(data.insumos, id); if (!i) return;
+      i.stock = Math.max(0, Math.round(qtyBase)); i.avgCost = costPerBase > 0 ? costPerBase : 0; save();
+    },
+    setStock(id, qtyBase) {
+      const i = byId(data.insumos, id); if (!i) return;
+      i.stock = Math.max(0, Math.round(qtyBase)); save();
+    },
+    tracksStock: (i) => !!(i && (i.purchases.length || i.stock > 0)),
     updateInsumo(id, patch) {
       const i = byId(data.insumos, id); if (!i) return null;
       const priceChanged = patch.buyPrice != null && (patch.buyPrice !== i.buyPrice || patch.buyQty !== i.buyQty || patch.buyUnit !== i.buyUnit);

@@ -12,8 +12,8 @@ Publicada en `https://shullmusik.github.io/tamales/` (GitHub Pages, raíz del re
 | Pestaña | Para qué sirve |
 |---|---|
 | **Ventas** | Captura diaria con botones grandes: producidos, vendidos y el botón rojo de *"me lo pidieron y no había"* (demanda perdida). Congela precio y costo del día. |
-| **Productos** | Cada producto tiene receta (insumo + gramaje por tanda), rendimiento de tanda, costos de operación (gas, mano de obra, empaque) y margen objetivo. Muestra costo unitario, margen real y **precio sugerido**. Arriba aparecen los **precios por revisar** cuando un insumo cambió. |
-| **Insumos** | Materia prima con unidad de compra (bulto de 20 kg, litro, ciento de hojas…), precio de compra e historial. Calcula el costo por gramo / mililitro / pieza. Cambiar un precio recalcula al instante todas las recetas que lo usan. |
+| **Productos** | Cada producto tiene receta (insumo + cantidad **por tanda o por pieza**, en g / kg / ml / l / pz / **cucharadita / cucharada / taza**), rendimiento de tanda, creación de insumos sin salir de la receta, costos de operación (gas, mano de obra, empaque) y margen objetivo. Muestra costo unitario, margen real y **precio sugerido**. Arriba aparecen los **precios por revisar** cuando un insumo cambió. |
+| **Insumos** | Materia prima con unidad de compra (bulto de 20 kg, litro, ciento de hojas…), precio de compra e historial. Calcula el costo por gramo / mililitro / pieza. **Inventario**: botón «Compré» por insumo, existencias que bajan solas con la producción, «alcanza para ~N piezas» y aviso «por agotarse». El costeo usa el **promedio ponderado del inventario**, así una subida de precio entra al costo poco a poco (amortiguada) en vez de de golpe. Equivalencias de cocina propias por insumo (1 cucharada = 18 g). |
 | **Ganancias** | Ingresos, costo de ventas, ganancia bruta, gastos fijos prorrateados, **ganancia neta**, oportunidad perdida, gráficos, recomendaciones de producción, **gastos fijos** y **punto de equilibrio** (piezas al día/mes). Exporta a WhatsApp y PDF. |
 
 ---
@@ -140,7 +140,10 @@ create table daily_entries (
 
 | Cálculo | Fórmula |
 |---|---|
-| Costo por unidad base de un insumo | `buyPrice / toBase(buyQty, buyUnit)` (centavos/g, ml o pz — flotante) |
+| Costo por unidad base de un insumo | modo `avg` con existencia: `avgCost` (promedio ponderado); si no: `buyPrice / toBase(buyQty, buyUnit)` |
+| Costo promedio tras una compra | `(stock × avgCost + totalPagado) / (stock + cantidadComprada)` |
+| Consumo de inventario al producir | por ingrediente: `qty × piezasProducidas / yield` (se descuenta al capturar «Producidos») |
+| Medidas de cocina | `qty × (insumo.kitchen[unidad] ?? {cdta: 5, cda: 15, taza: 240})` en unidad base |
 | Costo de insumos por tanda | `Σ costoBase(insumo_i) × qty_i` |
 | **Costo de insumos por pieza** | `round(costoTanda / yield)` |
 | Operación por pieza | `round((gasPerBatch + laborPerBatch) / yield + packPerPiece)` |
@@ -164,6 +167,10 @@ create table daily_entries (
 5. Editar un producto a mano también cierra su revisión (la usuaria ya vio el costo nuevo).
 
 ---
+
+### Inventario y costo amortiguado
+
+Registrar una compra («Compré 1 kg de manteca a $85») sube la existencia y recalcula el **costo promedio ponderado**; la primera vez pregunta cuánto había antes (valuado al precio anterior). Cada pieza capturada en *Ventas → Producidos* descuenta de las existencias lo que dice la receta; corregir el número devuelve o descuenta la diferencia. Ajustes permite cambiar a costear con la *última compra* si se prefiere ver el impacto completo de inmediato.
 
 ## 5. Plan de implementación (ejecutado)
 

@@ -54,6 +54,7 @@ TM.app = (() => {
     $('#bizPhone').value = s.phone || '';
     $('#sMargin').value = s.targetMargin;
     $('#sStep').value = s.priceStep;
+    $('#sCostMode').value = s.costMode || 'avg';
     $('#sWorkDays').value = s.workDays;
     $('#sAllocate').checked = !!s.allocateFixed;
     $('#sExpected').value = s.expectedPerDay || '';
@@ -64,16 +65,17 @@ TM.app = (() => {
 
   function saveSettings() {
     const s = S.data.settings;
-    const before = JSON.stringify([s.allocateFixed, s.expectedPerDay, s.workDays]);
+    const before = JSON.stringify([s.allocateFixed, s.expectedPerDay, s.workDays, s.costMode]);
     s.biz = $('#bizName').value.trim();
     s.phone = $('#bizPhone').value.trim();
     s.targetMargin = Math.min(95, Math.max(0, Number($('#sMargin').value) || 0));
     s.priceStep = Number($('#sStep').value) || 0;
+    s.costMode = $('#sCostMode').value === 'last' ? 'last' : 'avg';
     s.workDays = Math.min(31, Math.max(1, Math.round(Number($('#sWorkDays').value) || 26)));
     s.allocateFixed = $('#sAllocate').checked;
     s.expectedPerDay = Math.max(0, Math.round(Number($('#sExpected').value) || 0));
     S.save();
-    if (before !== JSON.stringify([s.allocateFixed, s.expectedPerDay, s.workDays])) C.recompute(null);
+    if (before !== JSON.stringify([s.allocateFixed, s.expectedPerDay, s.workDays, s.costMode])) C.recompute(null);
     render();
   }
 
@@ -152,10 +154,18 @@ TM.app = (() => {
       if (U.state.view === 'insumos') TM.views.insumos.open(null);
     });
     $('#btnMenu').addEventListener('click', openSettings);
-    document.addEventListener('click', (ev) => { if (ev.target.closest('[data-close]')) U.closeSheets(); });
-    document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape') U.closeSheets(); });
+    // Cancelar / tocar fuera cierra SOLO esa hoja (puede haber una apilada encima de otra).
+    document.addEventListener('click', (ev) => {
+      const x = ev.target.closest('[data-close]'); if (!x) return;
+      const sheet = x.closest('.sheet'); if (sheet) U.closeSheet('#' + sheet.id); else U.closeSheets();
+    });
+    document.addEventListener('keydown', (ev) => {
+      if (ev.key !== 'Escape') return;
+      const open = $$('.sheet').filter((sh) => !sh.hidden).pop();
+      if (open) U.closeSheet('#' + open.id);
+    });
 
-    ['#bizName', '#bizPhone', '#sMargin', '#sStep', '#sWorkDays', '#sExpected'].forEach((s) => $(s).addEventListener('change', saveSettings));
+    ['#bizName', '#bizPhone', '#sMargin', '#sStep', '#sCostMode', '#sWorkDays', '#sExpected'].forEach((s) => $(s).addEventListener('change', saveSettings));
     $('#sAllocate').addEventListener('change', () => { $('#sExpectedWrap').hidden = !$('#sAllocate').checked; saveSettings(); });
 
     $('#btnBackup').addEventListener('click', () => {
@@ -228,7 +238,7 @@ TM.app = (() => {
     try { sessionStorage.removeItem('tm-heal'); } catch (e) { /* la autocuración de index.html puede volver a actuar */ }
   }
 
-  return { setView, render, badge, seed, init, ready: false, version: '2.1.0' };
+  return { setView, render, badge, seed, init, ready: false, version: '2.2.0' };
 })();
 
 // TM.app ya existe aquí: init puede usarlo (badge, render) sin importar cuándo corra.

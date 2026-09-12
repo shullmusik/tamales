@@ -101,6 +101,7 @@ TM.views.ventas = (() => {
     const next = int(e[field]) + delta;
     if (next < 0) return false;
     S.setEntry(U.state.day, pid, { [field]: next }, snapshot(p));
+    if (field === 'made') C.applyProduction(p, delta);        // descuenta insumos del inventario
     patch(pid);
     return true;
   }
@@ -141,7 +142,9 @@ TM.views.ventas = (() => {
     list.addEventListener('change', (ev) => {
       const input = ev.target.closest('[data-num]'); if (!input) return;
       const p = S.product(input.dataset.id); if (!p) return;
+      const before = (S.entry(U.state.day, p.id) || { made: 0 }).made | 0;
       S.setEntry(U.state.day, p.id, { [input.dataset.num]: int(input.value) }, snapshot(p));
+      if (input.dataset.num === 'made') C.applyProduction(p, int(input.value) - before);
       patch(p.id);
     });
     list.addEventListener('focusin', (ev) => { if (ev.target.matches('[data-num]')) ev.target.select(); });

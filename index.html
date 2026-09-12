@@ -14,7 +14,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
-<link rel="stylesheet" href="css/app.css?v=2.1.0">
+<link rel="stylesheet" href="css/app.css?v=2.2.0">
 </head>
 <body>
 
@@ -184,28 +184,37 @@
 
     <!-- receta -->
     <div class="pane" data-pane-id="receta" hidden>
-      <label class="field">
+      <span class="field__label">¿Cómo capturas las cantidades?</span>
+      <div class="segmented segmented--sm" id="rMode" role="group" aria-label="Modo de la receta">
+        <button type="button" class="segmented__btn is-on" data-mode="batch">Por tanda (lote)</button>
+        <button type="button" class="segmented__btn" data-mode="piece">Por pieza</button>
+      </div>
+      <p class="hint" id="rModeHelp"></p>
+      <label class="field" id="rYieldWrap">
         <span class="field__label">Rendimiento de la tanda</span>
         <div class="field__inline">
           <span>Esta mezcla rinde para</span>
           <input class="field__input field__input--sm" id="rYield" type="number" inputmode="numeric" min="1" placeholder="40">
           <span id="rYieldLabel">piezas</span>
         </div>
-        <span class="field__help">Captura las cantidades de toda la tanda; el costo por pieza se divide solo.</span>
       </label>
       <div id="rItems" class="ritems"></div>
-      <button type="button" class="btn btn--ghost btn--block" id="rAdd">+ Añadir ingrediente</button>
+      <div class="field-pair">
+        <button type="button" class="btn btn--ghost" id="rAdd">+ Ingrediente</button>
+        <button type="button" class="btn btn--ghost" id="rNewInsumo">✨ Insumo nuevo</button>
+      </div>
+      <p class="hint">Puedes capturar en gramos, kilos, mililitros, litros, piezas o en <b>cucharaditas, cucharadas y tazas</b>. Las equivalencias de cocina se ajustan en cada insumo.</p>
     </div>
 
     <!-- operación -->
     <div class="pane" data-pane-id="operacion" hidden>
       <p class="hint">Costos que no son ingredientes pero sí se gastan al producir. Se reparten entre las piezas de la <span id="oBatchLabel">tanda</span>.</p>
       <label class="field">
-        <span class="field__label">Gas / energía por tanda</span>
+        <span class="field__label" id="oGasLabel">Gas / energía por tanda</span>
         <div class="field__money"><span>$</span><input class="field__input" id="oGas" type="number" inputmode="decimal" step="0.5" min="0" placeholder="0.00"></div>
       </label>
       <label class="field">
-        <span class="field__label">Mano de obra por tanda</span>
+        <span class="field__label" id="oLaborLabel">Mano de obra por tanda</span>
         <div class="field__money"><span>$</span><input class="field__input" id="oLabor" type="number" inputmode="decimal" step="0.5" min="0" placeholder="0.00"></div>
         <span class="field__help">Lo que le pagarías a alguien por hacer esta tanda (aunque la hagas tú).</span>
       </label>
@@ -255,12 +264,74 @@
     </div>
     <div class="margin-preview" id="iPreview"></div>
     <p class="hint" id="iAffected"></p>
+
+    <div id="iKitchen" hidden>
+      <span class="field__label">Medidas de cocina de este insumo (en <span id="iKitchenBase">g</span>)</span>
+      <div class="field-trio">
+        <label class="field"><input class="field__input" id="iK_cdta" type="number" inputmode="decimal" min="0" step="any" aria-label="Gramos por cucharadita"><span class="field__help">1 cucharadita</span></label>
+        <label class="field"><input class="field__input" id="iK_cda" type="number" inputmode="decimal" min="0" step="any" aria-label="Gramos por cucharada"><span class="field__help">1 cucharada</span></label>
+        <label class="field"><input class="field__input" id="iK_taza" type="number" inputmode="decimal" min="0" step="any" aria-label="Gramos por taza"><span class="field__help">1 taza</span></label>
+      </div>
+      <p class="hint">Vacío = equivalencia de agua (5 · 15 · 240). Una taza de harina pesa ~120 g; de manteca ~200 g; de azúcar ~200 g.</p>
+    </div>
+
+    <div id="iStockWrap" hidden>
+      <span class="field__label">Existencia actual (corrígela si no coincide)</span>
+      <div class="field-pair">
+        <label class="field"><input class="field__input" id="iStock" type="number" inputmode="decimal" min="0" step="any" aria-label="Existencia"></label>
+        <label class="field"><select class="field__input" id="iStockUnit" aria-label="Unidad de la existencia"></select></label>
+      </div>
+      <p class="hint" id="iStockNote"></p>
+    </div>
+
     <div id="iHistory"></div>
     <div class="sheet__actions">
       <button type="button" class="btn btn--ghost" data-close>Cancelar</button>
       <button type="submit" class="btn btn--primary" id="iSubmit">Guardar</button>
     </div>
     <button type="button" class="btn btn--danger-text" id="iDelete" hidden>Eliminar este insumo</button>
+  </form>
+</div>
+
+<!-- ============ HOJA: COMPRA DE INSUMO (inventario) ============ -->
+<div class="sheet" id="sheetBuy" role="dialog" aria-modal="true" aria-labelledby="sheetBuyTitle" hidden>
+  <div class="sheet__scrim" data-close></div>
+  <form class="sheet__card" id="formBuy" novalidate>
+    <div class="sheet__grip"></div>
+    <h2 class="sheet__title" id="sheetBuyTitle">Compré</h2>
+    <span class="field__label">¿Cuánto compraste y cuánto pagaste?</span>
+    <div class="field-trio">
+      <label class="field">
+        <input class="field__input" id="bQty" type="number" inputmode="decimal" min="0" step="any" placeholder="20" aria-label="Cantidad comprada">
+        <span class="field__help">cantidad</span>
+      </label>
+      <label class="field">
+        <select class="field__input" id="bUnit" aria-label="Unidad"></select>
+        <span class="field__help">unidad</span>
+      </label>
+      <label class="field">
+        <div class="field__money"><span>$</span><input class="field__input" id="bTotal" type="number" inputmode="decimal" step="0.5" min="0" placeholder="540" aria-label="Total pagado"></div>
+        <span class="field__help">total pagado</span>
+      </label>
+    </div>
+    <label class="field">
+      <span class="field__label">Fecha</span>
+      <input class="field__input" id="bDate" type="date" aria-label="Fecha de la compra">
+    </label>
+    <div id="bInitialWrap" hidden>
+      <span class="field__label">¿Ya tenías algo guardado antes de esta compra? (opcional)</span>
+      <div class="field-pair">
+        <label class="field"><input class="field__input" id="bInitial" type="number" inputmode="decimal" min="0" step="any" placeholder="0" aria-label="Existencia previa"></label>
+        <label class="field"><select class="field__input" id="bInitialUnit" aria-label="Unidad de la existencia previa"></select></label>
+      </div>
+      <p class="hint">Se cuenta al precio anterior, para que el costo promedio salga bien desde el principio.</p>
+    </div>
+    <div class="margin-preview" id="bPreview"></div>
+    <p class="hint" id="bNote"></p>
+    <div class="sheet__actions">
+      <button type="button" class="btn btn--ghost" data-close>Cancelar</button>
+      <button type="submit" class="btn btn--primary">Registrar compra</button>
+    </div>
   </form>
 </div>
 
@@ -322,6 +393,15 @@
       </label>
     </div>
 
+    <label class="field">
+      <span class="field__label">Costear las recetas con</span>
+      <select class="field__input" id="sCostMode">
+        <option value="avg">Promedio del inventario (amortigua subidas)</option>
+        <option value="last">Precio de la última compra</option>
+      </select>
+      <span class="field__help">Con «promedio», si compras un bulto más caro el costo sube poco a poco conforme se acaba el barato. Aplica a los insumos con compras registradas.</span>
+    </label>
+
     <h3 class="section-title">Gastos fijos</h3>
     <label class="field">
       <span class="field__label">Días de venta al mes</span>
@@ -357,17 +437,17 @@
 <div id="printSheet" aria-hidden="true"></div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-<script src="js/core/money.js?v=2.1.0"></script>
-<script src="js/core/units.js?v=2.1.0"></script>
-<script src="js/core/store.js?v=2.1.0"></script>
-<script src="js/core/costing.js?v=2.1.0"></script>
-<script src="js/verticals/tamales.js?v=2.1.0"></script>
-<script src="js/ui/common.js?v=2.1.0"></script>
-<script src="js/ui/ventas.js?v=2.1.0"></script>
-<script src="js/ui/productos.js?v=2.1.0"></script>
-<script src="js/ui/insumos.js?v=2.1.0"></script>
-<script src="js/ui/ganancias.js?v=2.1.0"></script>
-<script src="js/app.js?v=2.1.0"></script>
+<script src="js/core/money.js?v=2.2.0"></script>
+<script src="js/core/units.js?v=2.2.0"></script>
+<script src="js/core/store.js?v=2.2.0"></script>
+<script src="js/core/costing.js?v=2.2.0"></script>
+<script src="js/verticals/tamales.js?v=2.2.0"></script>
+<script src="js/ui/common.js?v=2.2.0"></script>
+<script src="js/ui/ventas.js?v=2.2.0"></script>
+<script src="js/ui/productos.js?v=2.2.0"></script>
+<script src="js/ui/insumos.js?v=2.2.0"></script>
+<script src="js/ui/ganancias.js?v=2.2.0"></script>
+<script src="js/app.js?v=2.2.0"></script>
 <script>
 /* Autocuración: si el navegador mezcló archivos de dos versiones (caché vieja),
    borra cachés y service workers viejos y recarga UNA vez. Los datos no se tocan. */
