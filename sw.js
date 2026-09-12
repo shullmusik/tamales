@@ -6,12 +6,22 @@
    Al publicar una versión nueva, sube CACHE una versión.
    ========================================================================== */
 
-var CACHE = 'tamalitos-v1';
+var CACHE = 'tamalitos-v2';
 
 var SHELL = [
   './',
   './index.html',
   './css/app.css',
+  './js/core/money.js',
+  './js/core/units.js',
+  './js/core/store.js',
+  './js/core/costing.js',
+  './js/verticals/tamales.js',
+  './js/ui/common.js',
+  './js/ui/ventas.js',
+  './js/ui/productos.js',
+  './js/ui/insumos.js',
+  './js/ui/ganancias.js',
   './js/app.js',
   './manifest.webmanifest',
   './icons/icon.svg',

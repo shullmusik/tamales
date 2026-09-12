@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=5">
-<title>Tamalitos · Control de ventas</title>
-<meta name="description" content="App móvil para registrar producción, ventas, demanda perdida y ganancias netas de un puesto de tamales. Funciona sin internet.">
+<title>Tamalitos · Costos y ganancias</title>
+<meta name="description" content="Costeo por receta, precios dinámicos, ventas diarias, demanda perdida y punto de equilibrio para tu negocio de tamales. Funciona sin internet.">
 <meta name="theme-color" content="#E8890C">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -21,8 +21,8 @@
 <!-- ============ BARRA SUPERIOR ============ -->
 <header class="appbar" id="appbar">
   <div class="appbar__text">
-    <h1 class="appbar__title" id="appTitle">Mis Tamales</h1>
-    <p class="appbar__sub" id="appSub">Catálogo y costos</p>
+    <h1 class="appbar__title" id="appTitle">Ventas</h1>
+    <p class="appbar__sub" id="appSub">Hoy</p>
   </div>
   <button class="iconbtn" id="btnMenu" aria-label="Ajustes y respaldo" aria-haspopup="dialog">
     <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>
@@ -31,14 +31,8 @@
 
 <main id="main">
 
-  <!-- ============ PESTAÑA 1: CATÁLOGO ============ -->
-  <section class="view" id="view-catalogo" role="tabpanel" aria-labelledby="tab-catalogo">
-    <div class="stat-strip" id="catalogStrip"></div>
-    <div id="catalogList" class="cards"></div>
-  </section>
-
-  <!-- ============ PESTAÑA 2: VENTAS DE HOY ============ -->
-  <section class="view" id="view-ventas" role="tabpanel" aria-labelledby="tab-ventas" hidden>
+  <!-- ============ VENTAS DE HOY ============ -->
+  <section class="view" id="view-ventas" role="tabpanel" aria-labelledby="tab-ventas">
     <div class="datebar">
       <button class="datebar__nav" id="dayPrev" aria-label="Día anterior">&#8249;</button>
       <label class="datebar__center">
@@ -48,13 +42,25 @@
       <button class="datebar__nav" id="dayNext" aria-label="Día siguiente">&#8250;</button>
     </div>
     <button class="chip chip--today" id="btnHoy" hidden>Volver a hoy</button>
-
     <div class="stat-strip" id="dayStrip"></div>
     <div id="dayList" class="cards"></div>
   </section>
 
-  <!-- ============ PESTAÑA 3: GANANCIAS Y REPORTES ============ -->
-  <section class="view" id="view-reportes" role="tabpanel" aria-labelledby="tab-reportes" hidden>
+  <!-- ============ PRODUCTOS (recetas, costo, precio) ============ -->
+  <section class="view" id="view-productos" role="tabpanel" aria-labelledby="tab-productos" hidden>
+    <div id="reviews"></div>
+    <div class="stat-strip" id="productStrip"></div>
+    <div id="productList" class="cards"></div>
+  </section>
+
+  <!-- ============ INSUMOS ============ -->
+  <section class="view" id="view-insumos" role="tabpanel" aria-labelledby="tab-insumos" hidden>
+    <div class="stat-strip" id="insumoStrip"></div>
+    <div id="insumoList" class="cards"></div>
+  </section>
+
+  <!-- ============ GANANCIAS Y REPORTES ============ -->
+  <section class="view" id="view-ganancias" role="tabpanel" aria-labelledby="tab-ganancias" hidden>
     <div class="segmented" id="rangeTabs" role="tablist" aria-label="Periodo del reporte">
       <button class="segmented__btn is-on" data-range="day">Hoy</button>
       <button class="segmented__btn" data-range="week">7 días</button>
@@ -67,19 +73,34 @@
     <div id="insights"></div>
 
     <section class="panel">
+      <div class="panel__head">
+        <h2 class="panel__title">🏠 Gastos fijos del mes</h2>
+        <b class="panel__total" id="fixedTotal"></b>
+      </div>
+      <div class="fixed-list" id="fixedList"></div>
+      <button class="btn btn--ghost btn--block" id="fixedAdd">+ Añadir gasto fijo</button>
+    </section>
+
+    <section class="panel">
+      <h2 class="panel__title">⚖️ Punto de equilibrio</h2>
+      <div id="breakEven"></div>
+      <canvas id="chartBE" aria-label="Gráfico de punto de equilibrio" hidden></canvas>
+    </section>
+
+    <section class="panel">
       <h2 class="panel__title">Lo que más se vende</h2>
-      <canvas id="chartSold" aria-label="Gráfico de tamales vendidos por sabor"></canvas>
+      <canvas id="chartSold" aria-label="Gráfico de piezas vendidas por producto"></canvas>
       <p class="panel__empty" id="soldEmpty" hidden>Todavía no hay ventas en este periodo.</p>
     </section>
 
     <section class="panel">
       <h2 class="panel__title">Lo que la gente pide y no hay</h2>
-      <canvas id="chartLost" aria-label="Gráfico de demanda perdida por sabor"></canvas>
+      <canvas id="chartLost" aria-label="Gráfico de demanda perdida por producto"></canvas>
       <p class="panel__empty" id="lostEmpty" hidden>Sin demanda perdida en este periodo. Muy bien.</p>
     </section>
 
     <section class="panel">
-      <h2 class="panel__title">Detalle por sabor</h2>
+      <h2 class="panel__title">Detalle por producto</h2>
       <div class="tablewrap"><table class="table" id="detailTable"></table></div>
     </section>
 
@@ -97,77 +118,180 @@
 </main>
 
 <!-- ============ BOTÓN FLOTANTE ============ -->
-<button class="fab" id="fab" aria-label="Añadir tamal">
+<button class="fab" id="fab" aria-label="Añadir producto" hidden>
   <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg>
-  <span class="fab__text">Añadir tamal</span>
+  <span class="fab__text">Añadir producto</span>
 </button>
 
 <!-- ============ NAVEGACIÓN INFERIOR ============ -->
 <nav class="tabbar" role="tablist" aria-label="Secciones">
-  <button class="tabbar__btn is-on" id="tab-catalogo" data-view="catalogo" role="tab" aria-selected="true">
-    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h10a2 2 0 0 1 2 2v16l-7-3.5L5 21V5a2 2 0 0 1 2-2z"/></svg>
-    <span>Mis Tamales</span>
-  </button>
-  <button class="tabbar__btn" id="tab-ventas" data-view="ventas" role="tab" aria-selected="false">
+  <button class="tabbar__btn is-on" id="tab-ventas" data-view="ventas" role="tab" aria-selected="true">
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h3l2.2 11.2a2 2 0 0 0 2 1.6h6.4a2 2 0 0 0 2-1.5L21 8H7"/><circle cx="11" cy="20" r="1.6"/><circle cx="18" cy="20" r="1.6"/></svg>
-    <span>Ventas de Hoy</span>
+    <span>Ventas</span>
   </button>
-  <button class="tabbar__btn" id="tab-reportes" data-view="reportes" role="tab" aria-selected="false">
+  <button class="tabbar__btn" id="tab-productos" data-view="productos" role="tab" aria-selected="false">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h10a2 2 0 0 1 2 2v16l-7-3.5L5 21V5a2 2 0 0 1 2-2z"/></svg>
+    <span>Productos</span>
+    <span class="badge" hidden>0</span>
+  </button>
+  <button class="tabbar__btn" id="tab-insumos" data-view="insumos" role="tab" aria-selected="false">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h16l-1.5 11a2 2 0 0 1-2 1.7h-9a2 2 0 0 1-2-1.7L4 9z"/><path d="M8 9V6a4 4 0 0 1 8 0v3"/></svg>
+    <span>Insumos</span>
+  </button>
+  <button class="tabbar__btn" id="tab-ganancias" data-view="ganancias" role="tab" aria-selected="false">
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20V10m7 10V4m7 16v-7"/></svg>
     <span>Ganancias</span>
   </button>
 </nav>
 
-<!-- ============ HOJA MODAL: PRODUCTO ============ -->
+<!-- ============ HOJA: PRODUCTO (básico · receta · operación) ============ -->
 <div class="sheet" id="sheetProduct" role="dialog" aria-modal="true" aria-labelledby="sheetProductTitle" hidden>
   <div class="sheet__scrim" data-close></div>
-  <form class="sheet__card" id="formProduct" novalidate>
+  <form class="sheet__card sheet__card--tall" id="formProduct" novalidate>
     <div class="sheet__grip"></div>
-    <h2 class="sheet__title" id="sheetProductTitle">Nuevo tamal</h2>
+    <h2 class="sheet__title" id="sheetProductTitle">Nuevo producto</h2>
 
-    <label class="field">
-      <span class="field__label">Sabor del tamal</span>
-      <input class="field__input" id="pName" type="text" placeholder="Mole con pollo" required maxlength="40" autocomplete="off" enterkeyhint="next">
-    </label>
+    <div class="segmented segmented--sm" id="productPanes">
+      <button type="button" class="segmented__btn is-on" data-pane="basico">Básico</button>
+      <button type="button" class="segmented__btn" data-pane="receta">Receta</button>
+      <button type="button" class="segmented__btn" data-pane="operacion">Operación</button>
+    </div>
 
-    <div class="emoji-row" id="emojiRow" role="group" aria-label="Ícono del sabor"></div>
-
-    <div class="field-pair">
+    <!-- básico -->
+    <div class="pane" data-pane-id="basico">
       <label class="field">
-        <span class="field__label">Costo por pieza</span>
-        <div class="field__money">
-          <span>$</span>
-          <input class="field__input" id="pCost" type="number" inputmode="decimal" step="0.5" min="0" placeholder="0.00" required enterkeyhint="next">
-        </div>
-        <span class="field__help">Masa, relleno, hoja, gas</span>
+        <span class="field__label">Nombre / sabor</span>
+        <input class="field__input" id="pName" type="text" placeholder="Verde con pollo" maxlength="40" autocomplete="off" enterkeyhint="next">
       </label>
-      <label class="field">
-        <span class="field__label">Precio de venta</span>
-        <div class="field__money">
-          <span>$</span>
-          <input class="field__input" id="pPrice" type="number" inputmode="decimal" step="0.5" min="0" placeholder="0.00" required enterkeyhint="done">
-        </div>
-        <span class="field__help">Lo que paga el cliente</span>
+      <div class="emoji-row" id="pEmojiRow" role="group" aria-label="Ícono"></div>
+      <div class="field-pair">
+        <label class="field">
+          <span class="field__label">Precio de venta</span>
+          <div class="field__money"><span>$</span><input class="field__input" id="pPrice" type="number" inputmode="decimal" step="0.5" min="0" placeholder="0.00"></div>
+        </label>
+        <label class="field">
+          <span class="field__label">Margen objetivo</span>
+          <div class="field__money field__money--pct"><input class="field__input" id="pMargin" type="number" inputmode="numeric" min="0" max="95" placeholder="45"><span>%</span></div>
+          <span class="field__help">Vacío = usa el global</span>
+        </label>
+      </div>
+      <label class="field" id="pManualWrap">
+        <span class="field__label">Costo por pieza (a mano, mientras no haya receta)</span>
+        <div class="field__money"><span>$</span><input class="field__input" id="pCostManual" type="number" inputmode="decimal" step="0.5" min="0" placeholder="0.00"></div>
+        <span class="field__help">En la pestaña Receta puedes desglosarlo por ingrediente y la app lo calcula sola.</span>
       </label>
     </div>
 
-    <div class="margin-preview" id="marginPreview">
-      <span>Ganancia por tamal</span>
-      <strong id="marginValue">$0.00</strong>
+    <!-- receta -->
+    <div class="pane" data-pane-id="receta" hidden>
+      <label class="field">
+        <span class="field__label">Rendimiento de la tanda</span>
+        <div class="field__inline">
+          <span>Esta mezcla rinde para</span>
+          <input class="field__input field__input--sm" id="rYield" type="number" inputmode="numeric" min="1" placeholder="40">
+          <span id="rYieldLabel">piezas</span>
+        </div>
+        <span class="field__help">Captura las cantidades de toda la tanda; el costo por pieza se divide solo.</span>
+      </label>
+      <div id="rItems" class="ritems"></div>
+      <button type="button" class="btn btn--ghost btn--block" id="rAdd">+ Añadir ingrediente</button>
     </div>
+
+    <!-- operación -->
+    <div class="pane" data-pane-id="operacion" hidden>
+      <p class="hint">Costos que no son ingredientes pero sí se gastan al producir. Se reparten entre las piezas de la <span id="oBatchLabel">tanda</span>.</p>
+      <label class="field">
+        <span class="field__label">Gas / energía por tanda</span>
+        <div class="field__money"><span>$</span><input class="field__input" id="oGas" type="number" inputmode="decimal" step="0.5" min="0" placeholder="0.00"></div>
+      </label>
+      <label class="field">
+        <span class="field__label">Mano de obra por tanda</span>
+        <div class="field__money"><span>$</span><input class="field__input" id="oLabor" type="number" inputmode="decimal" step="0.5" min="0" placeholder="0.00"></div>
+        <span class="field__help">Lo que le pagarías a alguien por hacer esta tanda (aunque la hagas tú).</span>
+      </label>
+      <label class="field">
+        <span class="field__label">Empaque por pieza</span>
+        <div class="field__money"><span>$</span><input class="field__input" id="oPack" type="number" inputmode="decimal" step="0.1" min="0" placeholder="0.00"></div>
+        <span class="field__help">Bolsa, servilleta, salsa en bolsita…</span>
+      </label>
+      <p class="hint" id="oFixedNote"></p>
+    </div>
+
+    <div class="costbox" id="pCostBox"></div>
 
     <div class="sheet__actions">
       <button type="button" class="btn btn--ghost" data-close>Cancelar</button>
       <button type="submit" class="btn btn--primary" id="pSubmit">Guardar</button>
     </div>
-    <button type="button" class="btn btn--danger-text" id="pDelete" hidden>Eliminar este sabor</button>
+    <button type="button" class="btn btn--danger-text" id="pDelete" hidden>Eliminar este producto</button>
   </form>
 </div>
 
-<!-- ============ HOJA MODAL: AJUSTES ============ -->
+<!-- ============ HOJA: INSUMO ============ -->
+<div class="sheet" id="sheetInsumo" role="dialog" aria-modal="true" aria-labelledby="sheetInsumoTitle" hidden>
+  <div class="sheet__scrim" data-close></div>
+  <form class="sheet__card" id="formInsumo" novalidate>
+    <div class="sheet__grip"></div>
+    <h2 class="sheet__title" id="sheetInsumoTitle">Nuevo insumo</h2>
+    <label class="field">
+      <span class="field__label">Nombre del insumo</span>
+      <input class="field__input" id="iName" type="text" placeholder="Harina de maíz" maxlength="50" autocomplete="off" enterkeyhint="next">
+    </label>
+    <div class="emoji-row" id="iEmojiRow" role="group" aria-label="Ícono"></div>
+    <span class="field__label">¿Cómo lo compras?</span>
+    <div class="field-trio">
+      <label class="field">
+        <input class="field__input" id="iQty" type="number" inputmode="decimal" min="0" step="any" placeholder="20" aria-label="Cantidad de la compra">
+        <span class="field__help">cantidad</span>
+      </label>
+      <label class="field">
+        <select class="field__input" id="iUnit" aria-label="Unidad de compra"></select>
+        <span class="field__help">unidad</span>
+      </label>
+      <label class="field">
+        <div class="field__money"><span>$</span><input class="field__input" id="iPrice" type="number" inputmode="decimal" step="0.5" min="0" placeholder="520" aria-label="Precio de la compra"></div>
+        <span class="field__help">precio</span>
+      </label>
+    </div>
+    <div class="margin-preview" id="iPreview"></div>
+    <p class="hint" id="iAffected"></p>
+    <div id="iHistory"></div>
+    <div class="sheet__actions">
+      <button type="button" class="btn btn--ghost" data-close>Cancelar</button>
+      <button type="submit" class="btn btn--primary" id="iSubmit">Guardar</button>
+    </div>
+    <button type="button" class="btn btn--danger-text" id="iDelete" hidden>Eliminar este insumo</button>
+  </form>
+</div>
+
+<!-- ============ HOJA: GASTO FIJO ============ -->
+<div class="sheet" id="sheetFixed" role="dialog" aria-modal="true" aria-labelledby="sheetFixedTitle" hidden>
+  <div class="sheet__scrim" data-close></div>
+  <form class="sheet__card" id="formFixed" novalidate>
+    <div class="sheet__grip"></div>
+    <h2 class="sheet__title" id="sheetFixedTitle">Nuevo gasto fijo</h2>
+    <label class="field">
+      <span class="field__label">Concepto</span>
+      <input class="field__input" id="fName" type="text" placeholder="Renta del local" maxlength="40" autocomplete="off">
+    </label>
+    <div class="emoji-row" id="fEmojiRow" role="group" aria-label="Ícono"></div>
+    <label class="field">
+      <span class="field__label">Monto al mes</span>
+      <div class="field__money"><span>$</span><input class="field__input" id="fAmount" type="number" inputmode="decimal" step="1" min="0" placeholder="2500"></div>
+      <span class="field__help">Si lo pagas por semana, multiplícalo por 4.3.</span>
+    </label>
+    <div class="sheet__actions">
+      <button type="button" class="btn btn--ghost" data-close>Cancelar</button>
+      <button type="submit" class="btn btn--primary">Guardar</button>
+    </div>
+    <button type="button" class="btn btn--danger-text" id="fDelete" hidden>Eliminar este gasto</button>
+  </form>
+</div>
+
+<!-- ============ HOJA: AJUSTES ============ -->
 <div class="sheet" id="sheetMenu" role="dialog" aria-modal="true" aria-labelledby="sheetMenuTitle" hidden>
   <div class="sheet__scrim" data-close></div>
-  <div class="sheet__card">
+  <div class="sheet__card sheet__card--tall">
     <div class="sheet__grip"></div>
     <h2 class="sheet__title" id="sheetMenuTitle">Ajustes</h2>
 
@@ -180,16 +304,49 @@
       <input class="field__input" id="bizPhone" type="tel" inputmode="tel" maxlength="20" placeholder="52 55 1234 5678">
     </label>
 
+    <h3 class="section-title">Precios</h3>
+    <div class="field-pair">
+      <label class="field">
+        <span class="field__label">Margen objetivo</span>
+        <div class="field__money field__money--pct"><input class="field__input" id="sMargin" type="number" inputmode="numeric" min="0" max="95"><span>%</span></div>
+        <span class="field__help">% del precio que debe ser ganancia</span>
+      </label>
+      <label class="field">
+        <span class="field__label">Redondear precio a</span>
+        <select class="field__input" id="sStep">
+          <option value="0">centavo</option>
+          <option value="50">$0.50</option>
+          <option value="100">$1.00</option>
+          <option value="500">$5.00</option>
+        </select>
+      </label>
+    </div>
+
+    <h3 class="section-title">Gastos fijos</h3>
+    <label class="field">
+      <span class="field__label">Días de venta al mes</span>
+      <input class="field__input" id="sWorkDays" type="number" inputmode="numeric" min="1" max="31">
+    </label>
+    <label class="switch-row">
+      <span><b>Cargar gastos fijos al costo unitario</b><small>Prorratea renta, luz y sueldo en cada pieza para que el precio sugerido ya los cubra.</small></span>
+      <input type="checkbox" id="sAllocate" class="toggle">
+    </label>
+    <label class="field" id="sExpectedWrap" hidden>
+      <span class="field__label">Piezas que produces al día (para prorratear)</span>
+      <input class="field__input" id="sExpected" type="number" inputmode="numeric" min="0">
+      <span class="field__help">Vacío = usa tu promedio real de los últimos 30 días.</span>
+    </label>
+
+    <h3 class="section-title">Datos</h3>
     <div class="menu-list">
       <button class="menu-item" id="btnInstall" hidden><span>📲</span> Instalar en la pantalla de inicio</button>
       <button class="menu-item" id="btnBackup"><span>💾</span> Descargar respaldo (.json)</button>
       <button class="menu-item" id="btnRestore"><span>📥</span> Restaurar respaldo</button>
       <button class="menu-item" id="btnCsv"><span>📊</span> Exportar historial (.csv)</button>
-      <button class="menu-item" id="btnSeed"><span>🌱</span> Cargar sabores de ejemplo</button>
+      <button class="menu-item" id="btnSeed"><span>🌱</span> Cargar datos de ejemplo (insumos, recetas y gastos)</button>
       <button class="menu-item menu-item--danger" id="btnWipe"><span>🗑️</span> Borrar todos los datos</button>
     </div>
     <input type="file" id="fileRestore" accept="application/json,.json" hidden>
-
     <p class="menu-foot">Los datos se guardan solo en este teléfono. Haz un respaldo de vez en cuando.</p>
     <div class="sheet__actions">
       <button type="button" class="btn btn--primary" data-close>Listo</button>
@@ -197,11 +354,19 @@
   </div>
 </div>
 
-<!-- ============ HOJA DE IMPRESIÓN / PDF ============ -->
 <div id="printSheet" aria-hidden="true"></div>
-
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
+<script src="js/core/money.js"></script>
+<script src="js/core/units.js"></script>
+<script src="js/core/store.js"></script>
+<script src="js/core/costing.js"></script>
+<script src="js/verticals/tamales.js"></script>
+<script src="js/ui/common.js"></script>
+<script src="js/ui/ventas.js"></script>
+<script src="js/ui/productos.js"></script>
+<script src="js/ui/insumos.js"></script>
+<script src="js/ui/ganancias.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>

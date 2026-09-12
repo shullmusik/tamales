@@ -1,7 +1,7 @@
 {
-  "name": "Tamalitos · Control de ventas",
+  "name": "Tamalitos · Costos y ganancias",
   "short_name": "Tamalitos",
-  "description": "Registra producción, ventas, demanda perdida y ganancias netas de tu puesto de tamales. Funciona sin internet.",
+  "description": "Costeo por receta, precios dinámicos, ventas diarias, demanda perdida y punto de equilibrio para tu negocio de tamales. Funciona sin internet.",
   "lang": "es-MX",
   "dir": "ltr",
   "start_url": "./index.html",

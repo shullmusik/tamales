@@ -1,227 +1,194 @@
-# Tamalitos — PWA de control de ventas para un puesto de tamales
+# Tamalitos — costos, recetas, precios dinámicos y ganancias para negocios de comida por receta
 
-App web instalable (Progressive Web App) pensada para operarse **con una sola mano, en el puesto,
-con las manos ocupadas y sin señal**. Sin frameworks, sin CDN, sin build: HTML + CSS + JS plano.
+PWA instalable, **sin frameworks ni build**, pensada para operarse con una mano en el puesto y sin señal.
+Núcleo genérico para cualquier comercio local que produzca por receta; primera verticalización: **tamales**.
 
-La app vive en la **raíz de este repositorio**: con GitHub Pages queda publicada en
-`https://shullmusik.github.io/tamales/`.
+Publicada en `https://shullmusik.github.io/tamales/` (GitHub Pages, raíz del repositorio).
 
 ---
 
-## 1. Arquitectura
+## 1. Qué hace
 
-```
-tamales/                    (raíz del repositorio)
-├─ index.html              Cascarón (app shell): 3 vistas + nav inferior + hojas modales
-├─ css/app.css             Sistema visual completo (tokens, modo oscuro, impresión)
-├─ js/app.js               Toda la lógica, en secciones numeradas:
-│                            1 Utilidades      (fechas, moneda MXN, toast, vibración)
-│                            2 Almacén (DB)    localStorage + migraciones
-│                            3 Cálculos        métricas por registro y agregados por periodo
-│                            4 Estado          vista activa, día seleccionado, rango
-│                            5 Vistas          catálogo · captura diaria · reportes
-│                            6 Gráficos        barras en <canvas>, sin librerías
-│                            7 Exportación     WhatsApp · PDF (print) · CSV · respaldo JSON
-│                            8 Hojas modales   alta/edición de producto, ajustes
-│                            9 Gestos          toque, mantener presionado, teclado
-│                           10 PWA             beforeinstallprompt + service worker
-│                           11 Init
-├─ manifest.webmanifest    Instalación en pantalla de inicio + accesos directos
-├─ sw.js                   Service worker: precache del shell + stale-while-revalidate
-└─ icons/                  icon.svg, icon-192.png, icon-512.png, maskable-512.png
-```
-
-**Decisiones de diseño**
-
-| Decisión | Por qué |
+| Pestaña | Para qué sirve |
 |---|---|
-| Sin framework ni CDN | El puesto no siempre tiene señal; el bundle total pesa ~60 KB y arranca en frío al instante. |
-| Todo en `localStorage` | Cero registro, cero contraseñas, cero costo de servidor. La usuaria abre y captura. |
-| Precio y costo **congelados** en cada registro diario | Si mañana sube el precio del tamal, los reportes de ayer siguen siendo verdaderos. |
-| Gráficos dibujados a mano en `<canvas>` | Evita 200 KB de librería y funciona sin conexión. |
-| Repintado puntual (`patchDayCard`) al contar | No se pierde el foco ni la posición del scroll al dar 30 toques seguidos. |
-| Un solo archivo CSS con tokens | Cambiar la paleta completa = cambiar 6 variables. |
+| **Ventas** | Captura diaria con botones grandes: producidos, vendidos y el botón rojo de *"me lo pidieron y no había"* (demanda perdida). Congela precio y costo del día. |
+| **Productos** | Cada producto tiene receta (insumo + gramaje por tanda), rendimiento de tanda, costos de operación (gas, mano de obra, empaque) y margen objetivo. Muestra costo unitario, margen real y **precio sugerido**. Arriba aparecen los **precios por revisar** cuando un insumo cambió. |
+| **Insumos** | Materia prima con unidad de compra (bulto de 20 kg, litro, ciento de hojas…), precio de compra e historial. Calcula el costo por gramo / mililitro / pieza. Cambiar un precio recalcula al instante todas las recetas que lo usan. |
+| **Ganancias** | Ingresos, costo de ventas, ganancia bruta, gastos fijos prorrateados, **ganancia neta**, oportunidad perdida, gráficos, recomendaciones de producción, **gastos fijos** y **punto de equilibrio** (piezas al día/mes). Exporta a WhatsApp y PDF. |
 
 ---
 
-## 2. Modelo de datos
+## 2. Arquitectura
 
-Clave de `localStorage`: **`tamalitos.v1`**
+```
+tamales/
+├─ index.html                 App shell: 4 vistas, nav inferior, 4 hojas modales
+├─ css/app.css                Tokens, modo claro/oscuro, safe-areas, impresión
+├─ js/
+│  ├─ core/                   ── NÚCLEO GENÉRICO (sin DOM, sin vocabulario de tamales) ──
+│  │  ├─ money.js             Dinero en centavos enteros; formato MXN; redondeo a paso
+│  │  ├─ units.js             Unidades de compra ↔ unidad base (g · ml · pz)
+│  │  ├─ store.js             Esquema v2 en localStorage, migración desde v1, CRUD
+│  │  └─ costing.js           Costeo por receta, motor de precios, punto de equilibrio, agregados
+│  ├─ verticals/
+│  │  └─ tamales.js           Vocabulario, emojis, defaults y datos de ejemplo del giro
+│  ├─ ui/                     ── VISTAS (solo pintan y capturan) ──
+│  │  ├─ common.js            DOM helpers, fechas, toast, hojas, gráficos en <canvas>
+│  │  ├─ ventas.js · productos.js · insumos.js · ganancias.js
+│  └─ app.js                  Navegación, ajustes, respaldo, PWA, arranque
+├─ manifest.webmanifest · sw.js · icons/
+```
+
+**Reglas de la arquitectura**
+
+1. `core/*` nunca toca el DOM ni sabe qué es un tamal: habla de *productos, insumos, tandas y piezas*.
+2. Una verticalización es **solo datos** (`TM.verticals.<giro>`): etiquetas, emojis, defaults y semilla.
+   Para una panadería o una juguería se copia `verticals/tamales.js`, se cambia el vocabulario y la semilla, y se apunta `settings.vertical`. Ninguna vista cambia.
+3. El dinero **siempre** es un entero en centavos. Los únicos flotantes son cocientes intermedios (costo por gramo, prorrateos) y se redondean una sola vez al final de cada cálculo (`Math.round`).
+4. Las cantidades de receta se **guardan en unidad base entera** (2.5 kg → `2500` g). La conversión vive solo en `units.js` y ocurre al capturar y al mostrar.
+5. Todo acceso a datos pasa por `TM.store`. Cambiar localStorage por Supabase/Firebase = reimplementar esos métodos.
+
+---
+
+## 3. Modelo de datos (localStorage · clave `tamalitos.v2`)
 
 ```jsonc
 {
-  "v": 1,
-  "settings": { "biz": "Tamales Doña Mary", "phone": "5215512345678" },
+  "v": 2,
+  "vertical": "tamales",
+  "settings": {
+    "biz": "Tamales Doña Mary", "phone": "5215512345678",
+    "targetMargin": 45,        // % del PRECIO que debe ser ganancia (global)
+    "priceStep": 50,           // redondeo del precio sugerido, en centavos ($0.50)
+    "workDays": 26,            // días de venta al mes (punto de equilibrio)
+    "allocateFixed": false,    // ¿prorratear gastos fijos en el costo unitario?
+    "expectedPerDay": 0        // piezas/día para prorratear (0 = promedio real)
+  },
 
-  "products": [
-    {
-      "id": "tm8x1a2b",        // string, generado localmente
-      "name": "Verde con pollo",
-      "emoji": "🌶️",
-      "cost": 7.0,             // costo unitario de producción (materia prima + insumos)
-      "price": 18.0,           // precio de venta al público
-      "active": true,          // aparece o no en la captura diaria
-      "createdAt": 1757308800000
-    }
-  ],
+  "insumos": [{
+    "id": "t…", "name": "Hoja de tamal", "emoji": "🍃",
+    "buyUnit": "pz", "buyQty": 100, "buyPrice": 6000,   // ciento de hojas por $60.00
+    "base": "pz",                                        // derivado de buyUnit
+    "history": [{ "at": 1757…, "buyPrice": 6000, "buyQty": 100, "buyUnit": "pz" }],
+    "createdAt": 1757…, "updatedAt": 1757…
+  }],
 
-  "days": {
-    "2026-09-08": {                 // fecha local en formato YYYY-MM-DD
-      "tm8x1a2b": {
-        "made": 30,                 // producidos
-        "sold": 24,                 // vendidos
-        "lost": 5,                  // demanda perdida (pedidos sin existencia)
-        "price": 18.0,              // foto del precio ese día
-        "cost": 7.0                 // foto del costo ese día
-      }
-    }
-  }
+  "products": [{
+    "id": "t…", "name": "Verde con pollo", "emoji": "🌶️", "active": true,
+    "price": 1800,                                       // centavos
+    "recipe": { "yield": 40, "items": [ { "insumoId": "t…", "qty": 2500 } ] },   // qty en unidad base, POR TANDA
+    "extras": { "gasPerBatch": 2400, "laborPerBatch": 6000, "packPerPiece": 30 },
+    "costManual": null,                                  // se usa si la receta está vacía
+    "targetMargin": null,                                // null = usa el global
+    "lastCost": 914,                                     // último costo ACEPTADO por la usuaria
+    "createdAt": 1757…
+  }],
+
+  "reviews": [{ "id": "t…", "productId": "t…", "oldCost": 914, "newCost": 947, "causes": ["<insumoId>"], "at": 1757… }],
+
+  "fixedCosts": [{ "id": "t…", "name": "Renta", "emoji": "🏠", "amount": 250000 }],   // centavos / mes
+
+  "days": { "2026-09-08": { "<productId>": { "made": 30, "sold": 24, "lost": 5, "price": 1800, "cost": 914 } } }
 }
 ```
 
-Un registro que queda en `0/0/0` se elimina del objeto: el historial solo guarda días con movimiento.
+`days[*][*].cost` es el **costo variable** (insumos + operación) congelado ese día: si mañana sube la manteca, los reportes de ayer no cambian.
 
-### Fórmulas (todas derivadas, nunca almacenadas)
-
-| Métrica | Fórmula |
-|---|---|
-| Margen bruto unitario | `price − cost` |
-| Sobrantes | `max(0, made − sold)` |
-| Eficiencia de venta | `sold / made × 100` |
-| Ingresos totales | `Σ sold × price` |
-| Costos de producción | `Σ made × cost` |
-| **Ganancia neta** | `ingresos − costos` |
-| **Valor de oportunidad perdida** | `Σ lost × price` |
-| Producción sugerida por día | `⌈(sold + lost) / días con movimiento⌉` |
-
-### Equivalente relacional (si algún día migras a Postgres/Supabase)
+### Relación Insumo → RecetaInsumo → Producto (equivalente SQL)
 
 ```sql
+create table insumos (
+  id uuid primary key, owner_id uuid not null,
+  name text not null, emoji text,
+  buy_unit text not null check (buy_unit in ('g','kg','ml','l','pz','docena','ciento')),
+  buy_qty numeric(12,3) not null check (buy_qty > 0),
+  buy_price_cents integer not null check (buy_price_cents >= 0),
+  updated_at timestamptz not null default now()
+);
+create table insumo_price_history (
+  insumo_id uuid references insumos(id) on delete cascade,
+  at timestamptz not null default now(),
+  buy_unit text, buy_qty numeric(12,3), buy_price_cents integer
+);
 create table products (
-  id          uuid primary key default gen_random_uuid(),
-  owner_id    uuid not null references auth.users(id),
-  name        text not null,
-  emoji       text default '🫔',
-  cost        numeric(10,2) not null check (cost  >= 0),
-  price       numeric(10,2) not null check (price >= 0),
-  active      boolean not null default true,
-  created_at  timestamptz not null default now()
+  id uuid primary key, owner_id uuid not null,
+  name text not null, emoji text, active boolean default true,
+  price_cents integer not null,
+  batch_yield integer not null default 1 check (batch_yield > 0),
+  gas_per_batch_cents integer default 0, labor_per_batch_cents integer default 0, pack_per_piece_cents integer default 0,
+  cost_manual_cents integer, target_margin numeric(5,2),
+  last_cost_cents integer default 0
 );
-
+create table recipe_items (               -- RecetaInsumo
+  product_id uuid references products(id) on delete cascade,
+  insumo_id  uuid references insumos(id)  on delete cascade,
+  qty_base   integer not null check (qty_base >= 0),   -- g / ml / pz por tanda
+  primary key (product_id, insumo_id)
+);
+create table fixed_costs (id uuid primary key, owner_id uuid, name text, emoji text, amount_cents integer);
 create table daily_entries (
-  id          uuid primary key default gen_random_uuid(),
-  owner_id    uuid not null references auth.users(id),
-  product_id  uuid not null references products(id) on delete cascade,
-  day         date not null,
-  made        integer not null default 0 check (made >= 0),
-  sold        integer not null default 0 check (sold >= 0),
-  lost        integer not null default 0 check (lost >= 0),
-  price_at    numeric(10,2) not null,   -- foto del precio del día
-  cost_at     numeric(10,2) not null,   -- foto del costo del día
-  unique (owner_id, product_id, day)
+  owner_id uuid, product_id uuid references products(id) on delete cascade, day date,
+  made int default 0, sold int default 0, lost int default 0,
+  price_cents int not null, cost_cents int not null,
+  primary key (owner_id, product_id, day)
 );
-
-create index on daily_entries (owner_id, day);
 ```
 
-Vista de reportes:
+---
 
-```sql
-create view daily_pnl as
-select owner_id, day,
-       sum(sold * price_at)                as ingresos,
-       sum(made * cost_at)                 as costos,
-       sum(sold * price_at - made * cost_at) as ganancia_neta,
-       sum(lost * price_at)                as oportunidad_perdida
-from daily_entries group by owner_id, day;
-```
+## 4. Fórmulas (todas en `core/costing.js`)
 
-### Cómo cambiar el almacenamiento
+| Cálculo | Fórmula |
+|---|---|
+| Costo por unidad base de un insumo | `buyPrice / toBase(buyQty, buyUnit)` (centavos/g, ml o pz — flotante) |
+| Costo de insumos por tanda | `Σ costoBase(insumo_i) × qty_i` |
+| **Costo de insumos por pieza** | `round(costoTanda / yield)` |
+| Operación por pieza | `round((gasPerBatch + laborPerBatch) / yield + packPerPiece)` |
+| Prorrateo de fijos (opcional) | `round(fijosMensuales / (piezasDía × workDays))` |
+| **Costo unitario** | insumos + operación (+ fijos prorrateados) |
+| Margen real | `(precio − costo) / precio × 100` |
+| **Precio sugerido** | `ceilToStep(costo / (1 − margenObjetivo/100), priceStep)` |
+| Ganancia bruta del periodo | `Σ sold × price − Σ made × cost` |
+| Gastos fijos del periodo | `fijosMensuales × díasDelPeriodo / 30` |
+| **Ganancia neta** | bruta − fijos del periodo |
+| Oportunidad perdida | `Σ lost × price` |
+| Margen de contribución promedio | `Σ w_i × (price_i − costoVariable_i)`, `w_i` = mezcla de ventas de 30 días (o partes iguales) |
+| **Punto de equilibrio** | `⌈fijosMensuales / contribuciónPromedio⌉` piezas al mes; `/ workDays` al día |
 
-Todo el acceso a datos pasa por el objeto `DB` (sección 2 de `js/app.js`): `load`, `save`,
-`products`, `addProduct`, `updateProduct`, `removeProduct`, `entry`, `setEntry`, `dayKeys`.
-Para usar Supabase o Firebase basta reimplementar esos métodos (haciéndolos `async` y
-llamando `render()` al resolver) sin tocar vistas, cálculos ni gráficos. Recomendación:
-conservar `localStorage` como caché offline y sincronizar al recuperar señal.
+### Motor de precios dinámicos (`costing.recompute`)
+
+1. Al guardar un insumo con precio distinto, se recalcula el costo variable de cada producto que lo usa.
+2. Si `nuevoCosto ≠ product.lastCost` se abre (o actualiza) una **revisión** con el costo viejo, el nuevo y los insumos causantes.
+3. La pestaña Productos muestra el globito y el mensaje *"El costo de Verde con pollo subió de $9.14 a $9.47 por el incremento de Hoja de tamal"*, el margen antes/después y — solo si el precio actual ya no cumple el objetivo — el **precio sugerido**.
+4. **Aceptar** fija el precio sugerido; **Ajustar** abre la hoja para poner otro; **Mantener** conserva el precio. En los tres casos `lastCost` se actualiza y la revisión se cierra.
+5. Editar un producto a mano también cierra su revisión (la usuaria ya vio el costo nuevo).
 
 ---
 
-## 3. Las tres pestañas
+## 5. Plan de implementación (ejecutado)
 
-**1 · Mis Tamales** — alta de sabores con costo y precio; el margen unitario se calcula solo y
-se ve antes de guardar. Cada tarjeta muestra costo, precio, ganancia por pieza y % de margen,
-con interruptor Activo/Pausado (pausado = deja de aparecer en la captura diaria, pero conserva
-su historial).
-
-**2 · Ventas de Hoy** — selector de fecha (arranca en *Hoy*, con flechas de día anterior/siguiente).
-Por cada sabor activo: contadores gigantes de **Producidos** y **Vendidos**, y un bloque rojo con el
-botón **+1 pedido** para la **demanda perdida**. Los tres números también se pueden escribir a mano
-si hay que corregir. Al pie de cada tarjeta, en tiempo real: sobrantes, eficiencia de venta,
-dinero perdido y ganancia del sabor.
-Mantener presionado cualquier `+` o `−` repite la cuenta (para capturar 30 piezas sin dar 30 toques).
-
-**3 · Ganancias y Reportes** — filtro Hoy / 7 días / Mes / Todo. Tarjetas de ingresos, costos,
-**ganancia neta** y **valor de oportunidad perdida**; gráficos de *lo que más se vende* vs.
-*lo que la gente pide y no hay*; tabla por sabor; y el módulo de inteligencia: producto ganador,
-producto que pierde dinero, recomendación de producción del tipo
-*"el tamal de Rojo con puerco tuvo 9 pedidos no surtidos y al de Dulce le sobraron 11 piezas…"*
-y una sugerencia numérica de producción por día.
-Exportación con un toque: **WhatsApp** (texto listo para enviar) y **PDF** (hoja de impresión
-formateada → «Guardar como PDF»). En Ajustes hay además respaldo `.json` e historial `.csv`.
-
----
-
-## 4. PWA e instalación
-
-* `manifest.webmanifest` declara `display: standalone`, orientación vertical, íconos 192/512 +
-  *maskable*, y dos accesos directos (`?v=ventas`, `?v=reportes`) que abren la app directo en
-  la pestaña útil desde el ícono del teléfono.
-* `sw.js` precachea el shell completo en la instalación y responde
-  *stale-while-revalidate*: la app abre en modo avión y se actualiza sola al haber señal.
-* Android/Chrome muestra "Instalar aplicación"; el botón de Ajustes usa `beforeinstallprompt`.
-  En iPhone/Safari: Compartir → *Agregar a pantalla de inicio*.
-* **Al publicar una versión nueva, sube el número de `CACHE` en `sw.js`** (`tamalitos-v1` →
-  `tamalitos-v2`), si no los teléfonos seguirán sirviendo la versión vieja.
-* Requiere **HTTPS** (o `localhost`). GitHub Pages ya sirve HTTPS.
-
----
-
-## 5. Accesibilidad y ergonomía táctil
-
-* Objetivos táctiles ≥ 48 px (`--tap: 52px`; botones `+`/`−` de 56 px; `+1 pedido` de 60 px de alto).
-* Navegación inferior fija al alcance del pulgar; el botón flotante nunca tapa la barra.
-* `env(safe-area-inset-*)` para el notch y la barra de gestos.
-* Modo claro y oscuro automáticos, alto contraste para leer bajo el sol.
-* `inputmode="numeric"/"decimal"` para que salga el teclado correcto; `navigator.vibrate`
-  confirma cada toque; `prefers-reduced-motion` desactiva animaciones.
-* Etiquetas `aria-label` en todos los contadores y `role="tab"` en la barra inferior.
+1. **Auditoría** de v1: una sola `app.js` de 1,100 líneas, dinero en flotantes, costo por producto capturado a mano, sin insumos.
+2. **Núcleo genérico** → `core/money.js` (centavos), `core/units.js` (conversiones sin error de flotante), `core/store.js` (esquema v2 + migración automática desde v1 y desde respaldos v1).
+3. **Costeo por receta** → `core/costing.js`: `materialCost`, `overheadCost`, `fixedAllocation`, `unitCost`, `suggestedPrice`.
+4. **Verticalización** → `verticals/tamales.js` con 15 insumos, 4 recetas y 4 gastos fijos de ejemplo.
+5. **Vistas** → Insumos (nueva), Productos (rediseñada con hoja de 3 pestañas: Básico · Receta · Operación y resumen de costo en vivo), Ventas (portada a centavos), Ganancias (+ gastos fijos, punto de equilibrio y gráfico).
+6. **Motor de precios** → revisiones, globito en la pestaña, aceptar/ajustar/mantener.
+7. **PWA** → precache de los 11 archivos JS, `CACHE = tamalitos-v2`.
 
 ---
 
 ## 6. Despliegue
 
-**GitHub Pages** (lo más rápido): en el repositorio → *Settings* → *Pages* →
-*Source: Deploy from a branch* → rama `main`, carpeta `/ (root)` → *Save*.
-En un par de minutos queda en `https://shullmusik.github.io/tamales/`.
-Ábrelo en el teléfono y usa *Instalar aplicación* (Android/Chrome) o
-*Compartir → Agregar a pantalla de inicio* (iPhone/Safari).
-
-También funciona tal cual en Netlify, Vercel o cualquier hosting estático.
-
-Prueba local (el service worker **no** funciona con `file://`):
+GitHub Pages: *Settings → Pages → Deploy from a branch → `main` / `(root)`*.
+Prueba local (el service worker no funciona con `file://`):
 
 ```bash
 npx --yes serve . -l 8899
 ```
 
-Para actualizar la app después de un cambio: `git add -A && git commit -m "…" && git push`,
-y recuerda subir el número de `CACHE` en `sw.js`.
+Al publicar cambios, **sube el número de `CACHE` en `sw.js`** para que los teléfonos ya instalados descarguen la versión nueva.
 
 ## 7. Estado de verificación
 
-Probado en este equipo con un servidor local: alta de sabores, captura con contadores,
-cálculo de sobrantes/eficiencia, agregados de los cuatro periodos, gráficos, tabla,
-recomendaciones, texto de WhatsApp, hoja de PDF, respaldo y restauración.
-El registro del *service worker* no pudo ejecutarse dentro del panel de vista previa usado
-para las pruebas (bloquea service workers); hay que confirmarlo en Chrome de escritorio o
-Android sirviendo la carpeta por HTTPS/localhost.
+Probado con servidor local en viewport de 375 px: carga de semilla, costeo por receta (Verde con pollo: insumos $6.74 + operación $2.40 = $9.14, 49 % de margen a $18), cambio de precio de un insumo → 4 revisiones con mensaje y sugerencia, aceptar sugerencia, edición de receta en vivo con cambio de unidad (800 g → 1.2 kg), migración de datos v1, reportes por periodo con gastos fijos y ganancia neta, punto de equilibrio con gráfico y avance del mes, texto de WhatsApp y hoja de PDF. Sin errores de consola.
+El registro del service worker no se puede ejecutar en el panel de vista previa usado para las pruebas; verificarlo en Chrome/Android sobre HTTPS.
