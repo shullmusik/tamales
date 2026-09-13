@@ -38,7 +38,7 @@
   "isChromeOSOnly": false,
   "isMetaQuest": false,
   "fullScopeUrl": "https://shullmusik.github.io/tamales/",
-  "minSdkVersion": 21,
+  "minSdkVersion": 23,
   "orientation": "portrait",
   "fingerprints": [
     { "name": "release", "value": "55:6E:9C:E8:9D:6A:07:AD:C0:71:1A:DD:58:E5:E1:3B:0F:72:4F:D5:0F:4E:39:5A:10:B0:BD:36:5E:73:F0:9C" }
