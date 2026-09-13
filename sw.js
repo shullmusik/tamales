@@ -11,7 +11,7 @@
    (o corre `node tools/release.mjs <versión>`, que hace las dos cosas).
    ========================================================================== */
 
-var VERSION = '2.3.0';
+var VERSION = '2.4.0';
 var CACHE = 'tamalitos-' + VERSION;
 
 var SHELL = [

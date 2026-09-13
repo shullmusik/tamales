@@ -7,6 +7,24 @@ def ksFile = System.getenv('KEYSTORE_FILE')
 def ksPass = System.getenv('KEYSTORE_PASSWORD')
 def hasKeystore = ksFile != null && ksPass != null && file(ksFile).exists()
 
+/* ---------------------------------------------------------------------------
+   La web (index.html, css/, js/, icons/, manifest) se copia DENTRO del APK en
+   assets/www en cada compilación: una sola base de código, app independiente.
+   sw.js se excluye a propósito: dentro del WebView no hace falta service worker.
+   --------------------------------------------------------------------------- */
+def webRoot = rootProject.projectDir.parentFile
+def webAssets = file("$projectDir/src/main/assets/www")
+
+tasks.register('copyWeb', Copy) {
+    description = 'Empaqueta la web dentro del APK (assets/www)'
+    doFirst { delete webAssets }
+    from(webRoot) {
+        include 'index.html', 'manifest.webmanifest', 'css/**', 'js/**', 'icons/**'
+    }
+    into webAssets
+}
+afterEvaluate { tasks.named('preBuild') { dependsOn 'copyWeb' } }
+
 android {
     namespace 'io.github.shullmusik.tamalitos'
     compileSdk 36
@@ -16,7 +34,7 @@ android {
         minSdk 23
         targetSdk 35
         versionCode (project.hasProperty('versionCode') ? project.versionCode.toInteger() : 1)
-        versionName (project.hasProperty('versionName') ? project.versionName : '2.3.0')
+        versionName (project.hasProperty('versionName') ? project.versionName : '2.4.0')
     }
 
     signingConfigs {
@@ -44,9 +62,8 @@ android {
 }
 
 dependencies {
-    // Abre la PWA dentro de Chrome a pantalla completa (Trusted Web Activity);
-    // si el teléfono no tiene Chrome, cae a un WebView.
-    implementation 'com.google.androidbrowserhelper:androidbrowserhelper:2.7.3'
-    // Google Play Billing expuesto a la web como Digital Goods API (monetización Pro).
-    implementation 'com.google.androidbrowserhelper:billing:1.2.0'
+    // WebViewAssetLoader: sirve assets/www bajo https://appassets.androidplatform.net (origen seguro).
+    implementation 'androidx.webkit:webkit:1.14.0'
+    // Google Play Billing para la versión Pro (Billing.java).
+    implementation 'com.android.billingclient:billing:8.3.0'
 }

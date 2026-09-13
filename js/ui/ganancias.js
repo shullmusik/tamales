@@ -193,8 +193,8 @@ TM.views.ganancias = (() => {
 
   function sendWhatsapp() {
     const phone = (S.data.settings.phone || '').replace(/\D/g, '');
-    const w = window.open(`https://wa.me/${phone}?text=${encodeURIComponent(reportText())}`, '_blank', 'noopener');
-    if (!w) { copyText(reportText()); U.toast('Reporte copiado: pégalo en WhatsApp'); }
+    const ok = U.openExternal(`https://wa.me/${phone}?text=${encodeURIComponent(reportText())}`);
+    if (!ok) { copyText(reportText()); U.toast('Reporte copiado: pégalo en WhatsApp'); }
   }
   function copyText(text) {
     if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(text).catch(() => {}); return; }
@@ -213,7 +213,7 @@ TM.views.ganancias = (() => {
       <div class="p-note">${insights(a).map((i) => `<p>${i.icon} ${i.text}</p>`).join('')}
         ${be.unitsMonth ? `<p>⚖️ Punto de equilibrio: ${U.num(be.unitsDay)} piezas al día (${U.num(be.unitsMonth)} al mes) para cubrir ${M.fmt(be.fixed)} de gastos fijos.</p>` : ''}</div>
       <p class="p-foot">Generado por ${esc(TM.vertical.appName)} el ${U.longDate(U.todayISO())}. Elige «Guardar como PDF» al imprimir.</p>`;
-    setTimeout(() => window.print(), 60);
+    setTimeout(() => U.print(), 60);
   }
 
   function wire() {

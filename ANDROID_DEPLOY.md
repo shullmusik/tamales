@@ -1,15 +1,19 @@
 # Tamalitos — guía de publicación en Android y Google Play
 
-Una sola base de código: la web (PWA) es la app. El proyecto `android/` es un
-**Trusted Web Activity** que la abre en Chrome a pantalla completa, con Google Play
-Billing expuesto a la web para cobrar la versión Pro. **No necesitas Android Studio**:
-GitHub Actions compila el APK y el AAB.
+**App independiente.** La web de Tamalitos viaja **dentro del APK** (`assets/www`) y se muestra
+en un WebView propio: no necesita el sitio en línea ni conexión para funcionar. Una sola base de
+código (la carpeta raíz del repo); el proyecto `android/` solo la empaqueta y añade lo que un
+WebView no hace solo: guardar respaldos, imprimir a PDF, abrir WhatsApp y Google Play Billing.
+**No necesitas Android Studio**: GitHub Actions compila el APK y el AAB.
 
 ```
-Web (PWA)  ──►  GitHub Pages  ──►  https://shullmusik.github.io/tamales/
-                                          ▲
-android/ (TWA)  ──►  GitHub Actions  ──►  APK (instalar directo) · AAB (Play Console)
+index.html · css/ · js/ · icons/  ──copyWeb──►  android/app/src/main/assets/www  ──►  APK / AAB
+                 (misma web)      ──Pages────►  https://shullmusik.github.io/tamales/ (versión navegador)
 ```
+
+> Los datos de la app Android y los de la versión web/PWA son almacenes distintos (cada uno vive
+> en su propio origen). Para pasar la información de una a otra: *Ajustes → Descargar respaldo*
+> y *Restaurar respaldo*.
 
 ---
 
@@ -24,7 +28,7 @@ Ya está generada en `C:\Users\shull\Downloads\tamales-llave\` (fuera del repo):
 | `keystore.base64.txt` | la llave en texto para el secreto de GitHub |
 | `license-private.jwk` | llave privada para firmar códigos Pro (ver §5) |
 
-Huella SHA-256 (la que va en `assetlinks.json` y en Play Console → *Integridad de la app*):
+Huella SHA-256 (Play Console → *Integridad de la app*):
 `55:6E:9C:E8:9D:6A:07:AD:C0:71:1A:DD:58:E5:E1:3B:0F:72:4F:D5:0F:4E:39:5A:10:B0:BD:36:5E:73:F0:9C`
 
 Si algún día hay que regenerarla (necesita un JDK; `keytool` viene con él):
@@ -50,42 +54,39 @@ Sin estos secretos el APK sale firmado con una llave temporal (sirve para probar
 
 ---
 
-## 2. `assetlinks.json` — vincular app y sitio
+## 2. Compilar el APK / AAB
 
-Android verifica que la app es dueña del sitio leyendo
-**`https://shullmusik.github.io/.well-known/assetlinks.json`** (raíz del dominio).
-El archivo ya está en este repo (`.well-known/assetlinks.json`) y se sirve en
-`…/tamales/.well-known/…`, pero **la verificación exige la raíz**.
-
-Para GitHub Pages eso significa un repositorio llamado exactamente **`shullmusik.github.io`**
-con Pages activado y el mismo archivo en `.well-known/assetlinks.json`. Hasta entonces la app
-funciona igual, pero Chrome muestra su barra de direcciones arriba.
-
-Comprobar: <https://developers.google.com/digital-asset-links/tools/generator> con
-`shullmusik.github.io`, paquete `io.github.shullmusik.tamalitos` y la huella de arriba.
-
----
-
-## 3. Compilar el APK / AAB
-
-**En la nube (recomendado):** cualquier push a `main` que toque `android/`, o
-*Actions → Android APK → Run workflow*. En ~4 minutos aparece en
+**En la nube (recomendado):** cualquier push a `main` que cambie la web (`index.html`, `css/`,
+`js/`, `icons/`) o `android/`, o *Actions → Android APK → Run workflow*. En ~4 minutos aparece en
 <https://github.com/shullmusik/tamales/releases>:
 
 - `Tamalitos-vX.Y.Z.apk` → instalar directo en el teléfono ("instalar de esta fuente").
 - `Tamalitos-vX.Y.Z.aab` → subir a Play Console.
 
-**En local (opcional, requiere JDK 17 + Android SDK 36):**
+**En local (opcional, requiere JDK 17 + Android SDK 36 + Gradle 8.14):**
 
 ```bash
 npm run android:apk      # android/app/build/outputs/apk/release/app-release.apk
 npm run android:aab      # android/app/build/outputs/bundle/release/app-release.aab
 ```
 
-**Con Bubblewrap (alternativa):** `npm run android:bubblewrap` usa `twa-manifest.json`.
+La tarea `copyWeb` (en `android/app/build.gradle`) copia la web a `assets/www` en cada compilación;
+esa carpeta está en `.gitignore`. `sw.js` no se incluye: dentro del WebView no hace falta.
 
 Cada compilación en Actions usa `versionCode = número de ejecución`, así Play siempre acepta
 la nueva como actualización.
+
+---
+
+## 3. Qué hace el proyecto Android (`android/app/src/main/java/…`)
+
+| Archivo | Función |
+|---|---|
+| `MainActivity.java` | WebView a pantalla completa. Sirve `assets/www` con `WebViewAssetLoader` bajo `https://appassets.androidplatform.net/` (origen seguro → `localStorage` estable y `crypto.subtle` para los códigos Pro). Puente `TamalitosNative`: `saveFile` (diálogo *Guardar como*), `print` (gestor de impresión → PDF), `openExternal` (WhatsApp, enlaces), selector de archivos para *Restaurar respaldo*, botón atrás que cierra la hoja abierta, accesos directos `tamalitos://ventas` y `tamalitos://ganancias`. |
+| `Billing.java` | Google Play Billing 8: consulta el producto `tamalitos_pro`, abre la hoja de pago, reconoce la compra y la restaura al arrancar. Responde a la web con `TM.billing.nativeResult(...)`. |
+
+Permisos: `INTERNET` (solo WhatsApp / pagos), `VIBRATE`, `com.android.vending.BILLING`.
+La app funciona completa sin conexión.
 
 ---
 
@@ -94,14 +95,13 @@ la nueva como actualización.
 1. Cuenta de desarrollador (pago único) en <https://play.google.com/console>.
 2. **Crear app** → nombre *Tamalitos*, idioma español (México), app, gratis.
 3. **Integridad de la app → Firma de apps de Play**: elige *usar tu propia llave* y sube
-   `tamalitos.keystore` (o deja que Play genere la suya; en ese caso **agrega la huella que Play
-   te dé** a `assetlinks.json`, además de la actual).
+   `tamalitos.keystore` (o deja que Play genere la suya).
 4. **Producción (o Pruebas internas) → Crear versión** → sube el `.aab` de Releases.
 5. Ficha: descripción, capturas (5.5" y 7"), ícono 512 px (`icons/icon-512.png`), gráfico de
-   funciones 1024×500, política de privacidad (la app no envía datos: "los datos se guardan
-   solo en el teléfono").
+   funciones 1024×500, política de privacidad ("los datos se guardan solo en el teléfono; la app
+   no envía información a ningún servidor").
 6. **Monetizar → Productos → Productos integrados → Crear producto**:
-   - ID: **`tamalitos_pro`** (debe coincidir con `SKU` en `js/core/billing.js`)
+   - ID: **`tamalitos_pro`** (debe coincidir con `SKU` en `js/core/billing.js` y `Billing.java`)
    - Tipo: producto administrado (pago único, no consumible)
    - Precio: p. ej. $149 MXN
    - Estado: **Activo**
@@ -118,7 +118,7 @@ Compras previas se restauran solas al abrir la app.
 
 | Camino | Cuándo | Cómo |
 |---|---|---|
-| **Google Play Billing** | app instalada desde Play | Digital Goods API + Payment Request (`js/core/billing.js`). La TWA expone Play Billing vía `DelegationService` + `androidbrowserhelper:billing`. |
+| **Google Play Billing** | app instalada desde Play | `Billing.java` ↔ `js/core/billing.js` por el puente nativo. |
 | **Código de licencia** | pago por transferencia, MercadoPago, efectivo, o uso en navegador | Tú generas un código firmado (ECDSA) y lo mandas por WhatsApp; la app lo verifica sin internet con la llave pública. |
 | **Enlace de pago** | opcional | Pon tu link en `PAY_LINK` (`js/core/billing.js`): la hoja Pro muestra "Pagar y recibir mi código". |
 
@@ -139,14 +139,13 @@ npm run license:code -- "Prueba" - 30            # caduca en 30 días
 
 ---
 
-## 6. Publicar una versión nueva de la app
-
-Toda la lógica es web, así que casi siempre basta con:
+## 6. Publicar una versión nueva
 
 ```bash
-npm run release -- 2.3.1     # sube ?v= en index.html, VERSION en sw.js y app.js
-git add -A && git commit -m "v2.3.1" && git push
+npm run release -- 2.4.1     # sube ?v= en index.html, VERSION en sw.js y app.js
+git add -A && git commit -m "v2.4.1" && git push
 ```
 
-Los teléfonos se actualizan solos al abrir la app. Solo hace falta un **nuevo AAB en Play** cuando
-cambie algo de `android/` (ícono, nombre, permisos, librerías).
+- La **web** (GitHub Pages) se actualiza sola en un par de minutos.
+- El **APK** se recompila solo en Actions (la web va adentro) y queda en Releases; para los
+  usuarios de Play, sube ese nuevo `.aab` a Play Console.

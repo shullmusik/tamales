@@ -166,6 +166,43 @@ TM.ui = (() => {
     ctx.fillText(`${num(Math.round(maxX))} piezas / mes`, w, padT);
   }
 
+  /* ------------------------------------------------ app Android nativa */
+  /** Puente con la app Android (MainActivity.Bridge). null en el navegador. */
+  const native = () => window.TamalitosNative || null;
+
+  /** Abre un enlace externo (wa.me, pago). En la app nativa lo hace Android; en el navegador, pestaña nueva. */
+  function openExternal(url) {
+    const n = native();
+    if (n && n.openExternal) { n.openExternal(url); return true; }
+    const w = window.open(url, '_blank', 'noopener');
+    return !!w;
+  }
+
+  /** Descarga un archivo de texto. En la app nativa abre "Guardar como"; en el navegador, descarga directa. */
+  function saveFile(name, mime, content) {
+    const n = native();
+    if (n && n.saveFile) { n.saveFile(name, mime, content); return; }
+    const blob = new Blob([content], { type: mime });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = name;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1500);
+  }
+
+  /** Imprimir / guardar como PDF. */
+  function print() {
+    const n = native();
+    if (n && n.print) { n.print(); return; }
+    window.print();
+  }
+
+  /** Botón atrás de Android: cierra la hoja abierta más arriba. Devuelve true si hizo algo. */
+  function backHandled() {
+    const open = $$('.sheet').filter((sh) => !sh.hidden).pop();
+    if (open) { closeSheet('#' + open.id); return true; }
+    return false;
+  }
+
   /* ------------------------------------------------------------ estado */
   const state = { view: 'ventas', day: todayISO(), range: 'day' };
 
@@ -173,6 +210,7 @@ TM.ui = (() => {
     $, $$, esc, int, num, cssVar,
     DIAS, MESES, isoOf, todayISO, dateFromISO, shiftISO, humanDate, longDate, ago,
     buzz, toast, openSheet, closeSheet, closeSheets, emojiRow, wireEmojiRow,
-    stat, empty, pill, barChart, breakEvenChart, state
+    stat, empty, pill, barChart, breakEvenChart, state,
+    native, openExternal, saveFile, print, backHandled
   };
 })();

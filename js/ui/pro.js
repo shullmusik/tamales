@@ -62,14 +62,14 @@ TM.views.pro = (() => {
     $('#proBuy').addEventListener('click', async () => {
       U.buzz();
       try { await B.playBuy(); U.closeSheets(); TM.app.render(); U.toast('¡Gracias! Tamalitos Pro activado'); }
-      catch (e) { if (!/abort|cancel/i.test(String(e && e.message))) U.toast('No se pudo completar la compra'); }
+      catch (e) { if (!/abort|cancel/i.test(String(e && e.message))) U.toast((e && e.message) || 'No se pudo completar la compra'); }
     });
     $('#proRestore').addEventListener('click', async () => {
       U.buzz();
       const ok = await B.playRestore();
       if (ok) { U.closeSheets(); TM.app.render(); U.toast('Compra restaurada: Pro activo'); } else U.toast('No encontramos una compra con esta cuenta de Google');
     });
-    $('#proPayLink').addEventListener('click', () => { U.buzz(); window.open(B.CONFIG.PAY_LINK, '_blank', 'noopener'); });
+    $('#proPayLink').addEventListener('click', () => { U.buzz(); U.openExternal(B.CONFIG.PAY_LINK); });
     $('#proRedeem').addEventListener('click', async () => {
       U.buzz();
       const r = await B.redeem($('#proCode').value);

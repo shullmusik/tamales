@@ -81,13 +81,7 @@ TM.app = (() => {
   }
 
   /* ---------------------------------------------- respaldo y ejemplo */
-  function downloadFile(name, mime, content) {
-    const blob = new Blob([content], { type: mime });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href = url; a.download = name;
-    document.body.appendChild(a); a.click(); document.body.removeChild(a);
-    setTimeout(() => URL.revokeObjectURL(url), 1500);
-  }
+  const downloadFile = (name, mime, content) => U.saveFile(name, mime, content);
 
   function exportCsv() {
     const rows = [['fecha', 'producto', 'producidos', 'vendidos', 'no_surtidos', 'sobrantes', 'costo_unitario', 'precio_unitario', 'ingresos', 'costo_total', 'ganancia_bruta', 'valor_perdido']];
@@ -198,6 +192,7 @@ TM.app = (() => {
   let deferredPrompt = null;
   function wirePWA() {
     window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); deferredPrompt = e; $('#btnInstall').hidden = false; });
+    if (U.native()) $('#btnInstall').hidden = true;
     $('#btnInstall').addEventListener('click', () => {
       if (!deferredPrompt) { U.toast('Usa el menú del navegador: «Instalar aplicación»'); return; }
       deferredPrompt.prompt();
@@ -205,7 +200,8 @@ TM.app = (() => {
     });
     window.addEventListener('appinstalled', () => { $('#btnInstall').hidden = true; U.toast('¡Listo! Ya está en tu pantalla de inicio'); });
 
-    if ('serviceWorker' in navigator) {
+    // Dentro de la app Android los archivos ya viajan en el APK: no hace falta service worker.
+    if ('serviceWorker' in navigator && !U.native()) {
       // Cuando se activa una versión nueva, la página se recarga sola una vez
       // (solo si ya había una versión controlando: en la primera visita no).
       const hadController = !!navigator.serviceWorker.controller;
@@ -241,7 +237,7 @@ TM.app = (() => {
     try { sessionStorage.removeItem('tm-heal'); } catch (e) { /* la autocuración de index.html puede volver a actuar */ }
   }
 
-  return { setView, render, badge, seed, init, ready: false, version: '2.3.0' };
+  return { setView, render, badge, seed, init, ready: false, version: '2.4.0' };
 })();
 
 // TM.app ya existe aquí: init puede usarlo (badge, render) sin importar cuándo corra.

@@ -1,12 +1,17 @@
 {
   "name": "tamalitos",
-  "version": "2.3.0",
+  "version": "2.4.0",
   "private": true,
   "description": "PWA de costos, recetas, inventario, precios dinámicos y ganancias para negocios de comida por receta. Sin dependencias: HTML + CSS + JS plano.",
   "homepage": "https://shullmusik.github.io/tamales/",
-  "repository": { "type": "git", "url": "https://github.com/shullmusik/tamales.git" },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/shullmusik/tamales.git"
+  },
   "license": "UNLICENSED",
-  "engines": { "node": ">=18" },
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "start": "npx --yes serve . -l 8899",
     "check": "node -e \"for (const f of require('child_process').execSync('git ls-files \\\"*.js\\\" \\\"*.mjs\\\"').toString().trim().split(/\\r?\\n/)) require('child_process').execSync('node --check ' + f, {stdio:'inherit'}); console.log('sintaxis OK')\"",
@@ -15,7 +20,6 @@
     "license:code": "node tools/license.mjs code",
     "android:apk": "cd android && gradle --no-daemon assembleRelease",
     "android:aab": "cd android && gradle --no-daemon bundleRelease",
-    "android:bubblewrap": "npx --yes @bubblewrap/cli build --manifest twa-manifest.json",
     "android:ci": "echo \"Sube a main o corre Actions → Android APK → Run workflow; el APK/AAB queda en GitHub Releases\""
   }
 }

@@ -1,10 +1,9 @@
 /* ==========================================================================
    core/billing.js — cobro de la versión Pro con tres caminos, sin servidor
    ---------------------------------------------------------------------------
-   1. Google Play Billing (app instalada desde Play): Digital Goods API +
-      Payment Request API con el método https://play.google.com/billing.
-      Requiere el producto `SKU` creado en Play Console y la app TWA con
-      la librería androidbrowserhelper:billing (ya está en android/).
+   1. Google Play Billing (app instalada desde Play): en la app Android nativa
+      por el puente TamalitosNative (android/…/Billing.java); en una TWA, por
+      la Digital Goods API. Requiere el producto `SKU` creado en Play Console.
    2. Código de licencia: firmado con ECDSA P-256 (tools/license.mjs). La app
       verifica la firma con la llave pública de abajo, sin internet. Sirve
       para pagos por transferencia / MercadoPago / efectivo.
@@ -22,8 +21,27 @@ TM.billing = (() => {
   };
   const PLAY = 'https://play.google.com/billing';
 
+  /* --------------------------------------- Google Play: app Android nativa */
+  const native = () => window.TamalitosNative || null;
+  let pendingResult = null, pendingDetails = null;
+
+  /** Llamado desde Android (Billing.java) con {ok, token, error, cancelled}. */
+  function nativeResult(r) {
+    const p = pendingResult; pendingResult = null;
+    if (r && r.ok) TM.plan.activate('play', r.token || null);
+    if (p) p(r || { ok: false });
+    else if (r && r.ok && TM.app) { TM.app.render(); TM.ui.toast('Tamalitos Pro restaurado'); }
+  }
+  function nativeDetails(d) { const p = pendingDetails; pendingDetails = null; if (p) p(d || null); }
+  const waitNative = (setter, call, ms) => new Promise((resolve) => {
+    const t = setTimeout(() => { setter(null); resolve(null); }, ms);
+    setter((v) => { clearTimeout(t); resolve(v); });
+    try { call(); } catch (e) { clearTimeout(t); setter(null); resolve(null); }
+  });
+
   /* ------------------------------------------------ Google Play (TWA) */
-  const playAvailable = () => typeof window.getDigitalGoodsService === 'function' && 'PaymentRequest' in window;
+  const dgAvailable = () => typeof window.getDigitalGoodsService === 'function' && 'PaymentRequest' in window;
+  const playAvailable = () => !!(native() && native().buyPro) || dgAvailable();
 
   async function playService() {
     if (!playAvailable()) return null;
@@ -32,6 +50,7 @@ TM.billing = (() => {
 
   /** Precio real desde Play: { price: "$149.00", title } | null */
   async function playDetails() {
+    if (native() && native().proDetails) return waitNative((f) => { pendingDetails = f; }, () => native().proDetails(), 8000);
     const svc = await playService(); if (!svc) return null;
     try {
       const items = await svc.getDetails([CONFIG.SKU]);
@@ -43,6 +62,12 @@ TM.billing = (() => {
 
   /** Abre la hoja de pago de Google Play. Devuelve true si se completó. */
   async function playBuy() {
+    if (native() && native().buyPro) {
+      const r = await waitNative((f) => { pendingResult = f; }, () => native().buyPro(), 5 * 60 * 1000);
+      if (r && r.ok) return true;
+      if (r && r.cancelled) throw new Error('cancelled');
+      throw new Error((r && r.error) || 'No se pudo completar la compra');
+    }
     if (!playAvailable()) throw new Error('Play no disponible');
     const request = new PaymentRequest(
       [{ supportedMethods: PLAY, data: { sku: CONFIG.SKU } }],
@@ -58,6 +83,10 @@ TM.billing = (() => {
 
   /** Restaura una compra previa (reinstalación / otro teléfono con la misma cuenta). */
   async function playRestore() {
+    if (native() && native().restorePro) {
+      const r = await waitNative((f) => { pendingResult = f; }, () => native().restorePro(), 20000);
+      return !!(r && r.ok);
+    }
     const svc = await playService(); if (!svc) return false;
     try {
       const purchases = await svc.listPurchases();
@@ -101,5 +130,5 @@ TM.billing = (() => {
     return r;
   }
 
-  return { CONFIG, playAvailable, playDetails, playBuy, playRestore, verifyCode, redeem };
+  return { CONFIG, playAvailable, playDetails, playBuy, playRestore, verifyCode, redeem, nativeResult, nativeDetails };
 })();

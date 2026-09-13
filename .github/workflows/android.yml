@@ -1,4 +1,4 @@
-# Compila la app Android (Trusted Web Activity) en la nube y publica el APK en Releases.
+# Compila la app Android INDEPENDIENTE (la web viaja dentro del APK) y publica APK y AAB en Releases.
 # No hace falta Android Studio ni Java en tu computadora.
 #
 # Firma permanente (recomendado): en el repo → Settings → Secrets and variables → Actions,
@@ -11,9 +11,14 @@ name: Android APK
 on:
   push:
     branches: [main]
-    paths:
+    paths:                       # la web viaja dentro del APK: cualquier cambio web recompila
       - 'android/**'
       - '.github/workflows/android.yml'
+      - 'index.html'
+      - 'css/**'
+      - 'js/**'
+      - 'icons/**'
+      - 'manifest.webmanifest'
   workflow_dispatch:
 
 permissions:
@@ -70,7 +75,7 @@ jobs:
         run: |
           set -o pipefail
           gradle -p android --no-daemon assembleRelease bundleRelease \
-            -PversionCode=${{ github.run_number }} -PversionName=2.3.${{ github.run_number }} 2>&1 | tee build.log
+            -PversionCode=${{ github.run_number }} -PversionName=2.4.${{ github.run_number }} 2>&1 | tee build.log
 
       # Si falla, el motivo se publica como anotación (visible sin iniciar sesión).
       - name: Motivo del error
@@ -83,7 +88,7 @@ jobs:
       - name: Renombrar
         id: out
         run: |
-          V="2.3.${{ github.run_number }}"
+          V="2.4.${{ github.run_number }}"
           S="${{ steps.llave.outputs.sufijo }}"
           mkdir -p salida
           cp android/app/build/outputs/apk/release/app-release.apk "salida/Tamalitos-v$V$S.apk"
@@ -107,8 +112,8 @@ jobs:
             📲 **Cómo instalar en el teléfono**
             1. Desde el celular, descarga el archivo `.apk` de abajo.
             2. Ábrelo; si Android pregunta, permite "instalar apps de esta fuente".
-            3. Listo: aparece el ícono naranja **Tamalitos**.
+            3. Listo: aparece el ícono naranja **Tamalitos**. La app es independiente: no necesita internet ni el sitio web.
 
-            ${{ steps.llave.outputs.permanente == 'true' && '✅ Firmado con la llave permanente: las versiones nuevas se instalan encima sin desinstalar.' || '⚠️ Firmado con una llave TEMPORAL (faltan los secretos KEYSTORE_BASE64 / KEYSTORE_PASSWORD). Para actualizar habrá que desinstalar la app primero y la pantalla completa de Chrome no se activará.' }}
+            ${{ steps.llave.outputs.permanente == 'true' && '✅ Firmado con la llave permanente: las versiones nuevas se instalan encima sin desinstalar.' || '⚠️ Firmado con una llave TEMPORAL (faltan los secretos KEYSTORE_BASE64 / KEYSTORE_PASSWORD). Para actualizar habrá que desinstalar la app primero.' }}
 
             El `.aab` es solo para publicar en Google Play.

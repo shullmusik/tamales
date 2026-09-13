@@ -216,41 +216,10 @@ capturados. Tres formas de activar Pro, sin servidor propio:
 
 Detalles y pasos de Play Console en [ANDROID_DEPLOY.md](ANDROID_DEPLOY.md).
 
-## 9. App para Android
+## 9. App para Android (independiente)
 
-La carpeta `android/` es un proyecto nativo tipo **Trusted Web Activity**: un APK con el ícono y el
-nombre *Tamalitos* que abre la PWA dentro de Chrome a pantalla completa. No hay lógica duplicada:
-la app Android muestra siempre la versión publicada en GitHub Pages (y funciona sin señal gracias
-al service worker). Si el teléfono no tiene Chrome, cae a un WebView.
-
-**No necesitas Android Studio.** El flujo `.github/workflows/android.yml` compila en la nube en cada
-cambio de `android/` (o a mano en *Actions → Android APK → Run workflow*) y publica el APK en
-**Releases** del repositorio, listo para descargar desde el teléfono e instalar.
-
-### Firma permanente (una sola vez)
-
-Para que las versiones nuevas se instalen encima de la anterior y Chrome abra la app sin barra de
-direcciones, el APK se firma con la llave `tamalitos.keystore` (guardada fuera del repositorio).
-En el repo → *Settings → Secrets and variables → Actions → New repository secret*:
-
-| Secreto | Valor |
-|---|---|
-| `KEYSTORE_BASE64` | contenido del archivo `keystore.base64.txt` |
-| `KEYSTORE_PASSWORD` | contenido de `password.txt` |
-
-Huella SHA-256 de esa llave (ya está en `.well-known/assetlinks.json`):
-`55:6E:9C:E8:9D:6A:07:AD:C0:71:1A:DD:58:E5:E1:3B:0F:72:4F:D5:0F:4E:39:5A:10:B0:BD:36:5E:73:F0:9C`
-
-### Pantalla completa (sin barra de Chrome)
-
-Android verifica la vinculación app ↔ sitio leyendo
-`https://shullmusik.github.io/.well-known/assetlinks.json` — en la **raíz del dominio**, no dentro
-de `/tamales/`. Para publicarlo ahí hace falta un repositorio llamado exactamente
-`shullmusik.github.io` con la carpeta `.well-known/assetlinks.json` (copia del archivo de este repo)
-y Pages activado. Sin ese archivo la app funciona igual, pero Chrome muestra su barra de
-direcciones arriba.
-
-### Google Play (opcional)
-
-Cada compilación también genera el `.aab` que pide Play Console. Requiere cuenta de desarrollador
-(pago único) y el mismo keystore.
+La carpeta `android/` empaqueta **la misma web dentro del APK** y la muestra en un WebView propio:
+la app no depende del sitio en línea ni de tener conexión. Lo que un WebView no hace solo lo
+resuelve el puente nativo `TamalitosNative` (guardar respaldos, PDF, WhatsApp, Google Play
+Billing). Compila en GitHub Actions y publica APK + AAB en Releases. Guía completa:
+[ANDROID_DEPLOY.md](ANDROID_DEPLOY.md).

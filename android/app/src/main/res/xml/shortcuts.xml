@@ -8,8 +8,8 @@
         <intent
             android:action="android.intent.action.VIEW"
             android:targetPackage="io.github.shullmusik.tamalitos"
-            android:targetClass="io.github.shullmusik.tamalitos.LauncherActivity"
-            android:data="https://shullmusik.github.io/tamales/index.html?v=ventas" />
+            android:targetClass="io.github.shullmusik.tamalitos.MainActivity"
+            android:data="tamalitos://ventas" />
     </shortcut>
     <shortcut
         android:shortcutId="ganancias"
@@ -19,7 +19,7 @@
         <intent
             android:action="android.intent.action.VIEW"
             android:targetPackage="io.github.shullmusik.tamalitos"
-            android:targetClass="io.github.shullmusik.tamalitos.LauncherActivity"
-            android:data="https://shullmusik.github.io/tamales/index.html?v=ganancias" />
+            android:targetClass="io.github.shullmusik.tamalitos.MainActivity"
+            android:data="tamalitos://ganancias" />
     </shortcut>
 </shortcuts>

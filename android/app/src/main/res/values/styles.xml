@@ -1,6 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.Tamalitos.Launcher" parent="@android:style/Theme.Translucent.NoTitleBar">
-        <item name="android:windowBackground">@color/colorPrimary</item>
+    <!-- Pantalla completa sin barra de título; el fondo es la pantalla de arranque
+         (naranja con el tamal) hasta que el WebView pinta la app. -->
+    <style name="Theme.Tamalitos" parent="@android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@drawable/splash_screen</item>
+        <item name="android:statusBarColor">@color/colorPrimary</item>
+        <item name="android:navigationBarColor">@color/navigationColor</item>
+        <item name="android:windowLightStatusBar">false</item>
     </style>
 </resources>
