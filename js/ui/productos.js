@@ -32,6 +32,7 @@ TM.views.productos = (() => {
     const avgMargin = active.length ? active.reduce((a, x) => a + x.s.currentMargin, 0) / active.length : 0;
     const below = active.filter((x) => x.s.belowTarget).length;
     $('#productStrip').innerHTML =
+      TM.views.pro.stripStat('products') +
       U.stat(prods.length, L().Products) +
       U.stat(Math.round(avgMargin) + '%', 'Margen prom.', avgMargin >= S.data.settings.targetMargin ? 'ok' : 'alert') +
       U.stat(below, 'Bajo objetivo', below ? 'alert' : 'ok');
@@ -89,6 +90,7 @@ TM.views.productos = (() => {
 
   /* ============================================================ hoja */
   function open(id) {
+    if (!id && !TM.views.pro.gate('product')) return;      // plan gratis: límite de productos
     const p = id ? S.product(id) : null;
     editing = id;
     draft = p ? JSON.parse(JSON.stringify(p)) : {

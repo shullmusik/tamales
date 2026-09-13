@@ -1,0 +1,46 @@
+{
+  "_comment": "Descriptor compatible con Bubblewrap (@bubblewrap/cli). El proyecto Android de este repo (android/) ya está generado y se compila en GitHub Actions; este archivo permite regenerarlo con `bubblewrap update` si algún día se prefiere esa vía. Mantener packageId y la huella de firma en sincronía con .well-known/assetlinks.json.",
+  "packageId": "io.github.shullmusik.tamalitos",
+  "host": "shullmusik.github.io",
+  "name": "Tamalitos · Costos y ganancias",
+  "launcherName": "Tamalitos",
+  "display": "standalone",
+  "themeColor": "#E8890C",
+  "themeColorDark": "#C46F00",
+  "navigationColor": "#FFFFFF",
+  "navigationColorDark": "#211A12",
+  "navigationDividerColor": "#EADFD1",
+  "navigationDividerColorDark": "#3A2E23",
+  "backgroundColor": "#E8890C",
+  "enableNotifications": false,
+  "startUrl": "/tamales/",
+  "iconUrl": "https://shullmusik.github.io/tamales/icons/icon-512.png",
+  "maskableIconUrl": "https://shullmusik.github.io/tamales/icons/maskable-512.png",
+  "splashScreenFadeOutDuration": 300,
+  "signingKey": {
+    "path": "../tamales-llave/tamalitos.keystore",
+    "alias": "tamalitos"
+  },
+  "appVersionName": "2.3.0",
+  "appVersionCode": 1,
+  "shortcuts": [
+    { "name": "Ventas de hoy", "shortName": "Ventas", "url": "/tamales/index.html?v=ventas", "chosenIconUrl": "https://shullmusik.github.io/tamales/icons/icon-192.png" },
+    { "name": "Ganancias", "shortName": "Ganancias", "url": "/tamales/index.html?v=ganancias", "chosenIconUrl": "https://shullmusik.github.io/tamales/icons/icon-192.png" }
+  ],
+  "generatorApp": "manual",
+  "webManifestUrl": "https://shullmusik.github.io/tamales/manifest.webmanifest",
+  "fallbackType": "webview",
+  "features": {
+    "playBilling": { "enabled": true }
+  },
+  "alphaDependencies": { "enabled": false },
+  "enableSiteSettingsShortcut": true,
+  "isChromeOSOnly": false,
+  "isMetaQuest": false,
+  "fullScopeUrl": "https://shullmusik.github.io/tamales/",
+  "minSdkVersion": 21,
+  "orientation": "portrait",
+  "fingerprints": [
+    { "name": "release", "value": "55:6E:9C:E8:9D:6A:07:AD:C0:71:1A:DD:58:E5:E1:3B:0F:72:4F:D5:0F:4E:39:5A:10:B0:BD:36:5E:73:F0:9C" }
+  ]
+}

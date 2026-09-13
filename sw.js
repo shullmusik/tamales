@@ -11,7 +11,7 @@
    (o corre `node tools/release.mjs <versión>`, que hace las dos cosas).
    ========================================================================== */
 
-var VERSION = '2.2.0';
+var VERSION = '2.3.0';
 var CACHE = 'tamalitos-' + VERSION;
 
 var SHELL = [
@@ -27,12 +27,15 @@ var SHELL = [
   './js/core/units.js?v=' + VERSION,
   './js/core/store.js?v=' + VERSION,
   './js/core/costing.js?v=' + VERSION,
+  './js/core/plan.js?v=' + VERSION,
+  './js/core/billing.js?v=' + VERSION,
   './js/verticals/tamales.js?v=' + VERSION,
   './js/ui/common.js?v=' + VERSION,
   './js/ui/ventas.js?v=' + VERSION,
   './js/ui/productos.js?v=' + VERSION,
   './js/ui/insumos.js?v=' + VERSION,
   './js/ui/ganancias.js?v=' + VERSION,
+  './js/ui/pro.js?v=' + VERSION,
   './js/app.js?v=' + VERSION
 ];
 

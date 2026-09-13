@@ -60,6 +60,7 @@ TM.app = (() => {
     $('#sExpected').value = s.expectedPerDay || '';
     $('#sExpectedWrap').hidden = !s.allocateFixed;
     $('#sExpected').placeholder = C.avgMadePerDay() ? `${Math.round(C.avgMadePerDay())} (promedio real)` : 'p. ej. 120';
+    TM.views.pro.renderStatus();
     U.openSheet('#sheetMenu');
   }
 
@@ -172,7 +173,7 @@ TM.app = (() => {
       downloadFile(`tamalitos-respaldo-${U.todayISO()}.json`, 'application/json', JSON.stringify(S.data, null, 2));
       U.toast('Respaldo descargado');
     });
-    $('#btnCsv').addEventListener('click', exportCsv);
+    $('#btnCsv').addEventListener('click', () => { if (TM.views.pro.gate('csv')) exportCsv(); });
     $('#btnRestore').addEventListener('click', () => $('#fileRestore').click());
     $('#fileRestore').addEventListener('change', (ev) => { if (ev.target.files && ev.target.files[0]) restore(ev.target.files[0]); ev.target.value = ''; });
     $('#btnSeed').addEventListener('click', () => { seed(); U.closeSheets(); setView('productos'); U.toast('Datos de ejemplo cargados'); });
@@ -232,13 +233,15 @@ TM.app = (() => {
     Object.keys(TM.views).forEach((k) => TM.views[k].wire());
     wire(); wirePWA();
     C.recompute(null);                                   // por si cambió algo con la app cerrada
+    // App instalada desde Google Play: si ya compró Pro con esta cuenta, se restaura solo.
+    if (!TM.plan.isPro() && TM.billing.playAvailable()) TM.billing.playRestore().then((ok) => { if (ok) { render(); U.toast('Tamalitos Pro restaurado'); } }).catch(() => {});
     const want = new URLSearchParams(location.search).get('v');
     setView(VIEWS[want] ? want : (S.data.products.length ? 'ventas' : 'productos'));
     TM.app.ready = true;
     try { sessionStorage.removeItem('tm-heal'); } catch (e) { /* la autocuración de index.html puede volver a actuar */ }
   }
 
-  return { setView, render, badge, seed, init, ready: false, version: '2.2.0' };
+  return { setView, render, badge, seed, init, ready: false, version: '2.3.0' };
 })();
 
 // TM.app ya existe aquí: init puede usarlo (badge, render) sin importar cuándo corra.

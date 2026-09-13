@@ -9,14 +9,14 @@ def hasKeystore = ksFile != null && ksPass != null && file(ksFile).exists()
 
 android {
     namespace 'io.github.shullmusik.tamalitos'
-    compileSdk 34
+    compileSdk 35
 
     defaultConfig {
         applicationId 'io.github.shullmusik.tamalitos'
         minSdk 21
-        targetSdk 34
+        targetSdk 35
         versionCode (project.hasProperty('versionCode') ? project.versionCode.toInteger() : 1)
-        versionName (project.hasProperty('versionName') ? project.versionName : '2.0.0')
+        versionName (project.hasProperty('versionName') ? project.versionName : '2.3.0')
     }
 
     signingConfigs {
@@ -46,5 +46,7 @@ android {
 dependencies {
     // Abre la PWA dentro de Chrome a pantalla completa (Trusted Web Activity);
     // si el teléfono no tiene Chrome, cae a un WebView.
-    implementation 'com.google.androidbrowserhelper:androidbrowserhelper:2.5.0'
+    implementation 'com.google.androidbrowserhelper:androidbrowserhelper:2.7.3'
+    // Google Play Billing expuesto a la web como Digital Goods API (monetización Pro).
+    implementation 'com.google.androidbrowserhelper:billing:1.2.0'
 }

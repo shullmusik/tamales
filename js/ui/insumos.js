@@ -29,6 +29,7 @@ TM.views.insumos = (() => {
     const invValue = tracked.reduce((a, i) => a + Math.round(i.stock * i.avgCost), 0);
     const low = tracked.filter((i) => { const st = C.stockInfo(i); return st && st.pieces != null && st.pieces < 40; }).length;
     $('#insumoStrip').innerHTML =
+      TM.views.pro.stripStat('insumos') +
       U.stat(items.length, 'Insumos') +
       (tracked.length ? U.stat(M.fmt0(invValue), 'En inventario') : '') +
       (tracked.length ? U.stat(low, 'Por agotarse', low ? 'alert' : 'ok') : '') +
@@ -67,6 +68,7 @@ TM.views.insumos = (() => {
   /* ======================================================= hoja insumo */
   /** open(id, callback): con callback (desde una receta) la hoja se apila y avisa al guardar. */
   function open(id, cb) {
+    if (!id && !TM.views.pro.gate('insumo')) return;       // plan gratis: límite de insumos
     const i = id ? S.insumo(id) : null;
     editing = id; emoji = i ? i.emoji : '🧺'; onSaved = cb || null;
     $('#sheetInsumoTitle').textContent = i ? 'Editar insumo' : 'Nuevo insumo';

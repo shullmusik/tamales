@@ -69,12 +69,12 @@ jobs:
       - name: Compilar APK y AAB
         run: |
           gradle -p android --no-daemon assembleRelease bundleRelease \
-            -PversionCode=${{ github.run_number }} -PversionName=2.0.${{ github.run_number }}
+            -PversionCode=${{ github.run_number }} -PversionName=2.3.${{ github.run_number }}
 
       - name: Renombrar
         id: out
         run: |
-          V="2.0.${{ github.run_number }}"
+          V="2.3.${{ github.run_number }}"
           S="${{ steps.llave.outputs.sufijo }}"
           mkdir -p salida
           cp android/app/build/outputs/apk/release/app-release.apk "salida/Tamalitos-v$V$S.apk"
