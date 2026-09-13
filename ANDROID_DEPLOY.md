@@ -75,7 +75,7 @@ Comprobar: <https://developers.google.com/digital-asset-links/tools/generator> c
 - `Tamalitos-vX.Y.Z.apk` → instalar directo en el teléfono ("instalar de esta fuente").
 - `Tamalitos-vX.Y.Z.aab` → subir a Play Console.
 
-**En local (opcional, requiere JDK 17 + Android SDK 35):**
+**En local (opcional, requiere JDK 17 + Android SDK 36):**
 
 ```bash
 npm run android:apk      # android/app/build/outputs/apk/release/app-release.apk

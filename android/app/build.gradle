@@ -9,7 +9,7 @@ def hasKeystore = ksFile != null && ksPass != null && file(ksFile).exists()
 
 android {
     namespace 'io.github.shullmusik.tamalitos'
-    compileSdk 35
+    compileSdk 36
 
     defaultConfig {
         applicationId 'io.github.shullmusik.tamalitos'

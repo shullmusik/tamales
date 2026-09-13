@@ -35,7 +35,7 @@ jobs:
       - name: Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '8.9'
+          gradle-version: '8.14.3'
 
       - name: Llave de firma
         id: llave
@@ -68,8 +68,17 @@ jobs:
 
       - name: Compilar APK y AAB
         run: |
+          set -o pipefail
           gradle -p android --no-daemon assembleRelease bundleRelease \
-            -PversionCode=${{ github.run_number }} -PversionName=2.3.${{ github.run_number }}
+            -PversionCode=${{ github.run_number }} -PversionName=2.3.${{ github.run_number }} 2>&1 | tee build.log
+
+      # Si falla, el motivo se publica como anotación (visible sin iniciar sesión).
+      - name: Motivo del error
+        if: failure()
+        run: |
+          MSG=$(grep -A12 "What went wrong" build.log | head -30 | tr '\n' ' ' | cut -c1-1500)
+          echo "::error title=Gradle::${MSG:-Sin detalle; revisa build.log}"
+          grep -n -i "error\|requires\|Could not" build.log | head -40 || true
 
       - name: Renombrar
         id: out
