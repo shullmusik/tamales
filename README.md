@@ -202,7 +202,21 @@ El registro del service worker no se puede ejecutar en el panel de vista previa 
 
 ---
 
-## 8. App para Android
+## 8. Monetización (Freemium / Pro)
+
+Plan gratis: 3 productos, 12 insumos, reportes de hoy y 7 días; Pro (pago único) quita los
+límites y habilita reportes del mes / historial completo y PDF / CSV. Nunca se ocultan datos ya
+capturados. Tres formas de activar Pro, sin servidor propio:
+
+1. **Google Play Billing** (app instalada desde Play): `js/core/billing.js` usa la Digital Goods
+   API + Payment Request; la TWA la expone con `androidbrowserhelper:billing`.
+2. **Código de licencia** firmado con ECDSA P-256 (`npm run license:code -- "Nombre"`), verificado
+   en el teléfono sin internet. Ideal para transferencia / MercadoPago / efectivo.
+3. **Enlace de pago** opcional (`PAY_LINK`).
+
+Detalles y pasos de Play Console en [ANDROID_DEPLOY.md](ANDROID_DEPLOY.md).
+
+## 9. App para Android
 
 La carpeta `android/` es un proyecto nativo tipo **Trusted Web Activity**: un APK con el ícono y el
 nombre *Tamalitos* que abre la PWA dentro de Chrome a pantalla completa. No hay lógica duplicada:
