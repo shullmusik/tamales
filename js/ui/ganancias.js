@@ -219,11 +219,10 @@ TM.views.ganancias = (() => {
   function wire() {
     $('#rangeTabs').addEventListener('click', (ev) => {
       const b = ev.target.closest('[data-range]'); if (!b) return;
-      if ((b.dataset.range === 'month' || b.dataset.range === 'all') && !TM.views.pro.gate('range:' + b.dataset.range)) return;
       U.state.range = b.dataset.range; U.buzz(8); render();
     });
     $('#btnWhatsapp').addEventListener('click', () => { U.buzz(); sendWhatsapp(); });
-    $('#btnPdf').addEventListener('click', () => { U.buzz(); if (TM.views.pro.gate('pdf')) printReport(); });
+    $('#btnPdf').addEventListener('click', () => { U.buzz(); printReport(); });
     $('#fixedAdd').addEventListener('click', () => { U.buzz(); openFixed(null); });
     $('#fixedList').addEventListener('click', (ev) => { const b = ev.target.closest('[data-fixed]'); if (b) { U.buzz(); openFixed(b.dataset.fixed); } });
     $('#formFixed').addEventListener('submit', submitFixed);

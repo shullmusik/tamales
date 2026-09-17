@@ -335,47 +335,6 @@
   </form>
 </div>
 
-<!-- ============ HOJA: TAMALITOS PRO (monetización) ============ -->
-<div class="sheet" id="sheetPro" role="dialog" aria-modal="true" aria-labelledby="sheetProTitle" hidden>
-  <div class="sheet__scrim" data-close></div>
-  <div class="sheet__card sheet__card--tall">
-    <div class="sheet__grip"></div>
-    <h2 class="sheet__title" id="sheetProTitle">⭐ Tamalitos Pro</h2>
-    <p class="pro-reason" id="proReason" hidden></p>
-
-    <div id="proActive" hidden>
-      <div class="insight insight--win"><span>✅</span><div><b>Pro está activo.</b> <span id="proActiveText"></span></div></div>
-    </div>
-
-    <div id="proOffer">
-      <ul class="pro-list">
-        <li>🫔 <b>Productos e insumos sin límite</b> (gratis: 3 productos y 12 insumos)</li>
-        <li>📅 <b>Reportes del mes y de todo el historial</b> (gratis: hoy y 7 días)</li>
-        <li>📄 <b>PDF y CSV</b> para tu contador o tu carpeta</li>
-        <li>💚 Apoyas a que la app siga mejorando</li>
-      </ul>
-      <div class="pro-price"><small>Un solo pago, para siempre</small><b id="proPrice">$149 MXN · pago único</b></div>
-
-      <button type="button" class="btn btn--primary btn--block" id="proBuy" hidden>Comprar en Google Play</button>
-      <button type="button" class="btn btn--ghost btn--block" id="proRestore" hidden>Ya lo compré: restaurar</button>
-      <button type="button" class="btn btn--primary btn--block" id="proPayLink" hidden>Pagar y recibir mi código</button>
-      <p class="hint" id="proHow" hidden>Para conseguir tu código escribe a quien te compartió la app; te lo manda por WhatsApp y lo pegas abajo.</p>
-
-      <div class="pro-code">
-        <span class="field__label">¿Tienes un código? Pégalo aquí</span>
-        <input class="field__input" id="proCode" type="text" placeholder="TMP-…" autocomplete="off" spellcheck="false">
-        <button type="button" class="btn btn--dark btn--block" id="proRedeem">Activar código</button>
-        <p class="hint pro-code__msg" id="proCodeMsg"></p>
-      </div>
-      <p class="hint">Tu código de instalación: <b id="proInstall"></b> <button type="button" class="linkbtn" id="proCopyInstall">copiar</button><br>Si te piden este dato al comprar, es para ligar la licencia a este teléfono.</p>
-    </div>
-
-    <div class="sheet__actions sheet__actions--single">
-      <button type="button" class="btn btn--ghost" data-close>Cerrar</button>
-    </div>
-  </div>
-</div>
-
 <!-- ============ HOJA: GASTO FIJO ============ -->
 <div class="sheet" id="sheetFixed" role="dialog" aria-modal="true" aria-labelledby="sheetFixedTitle" hidden>
   <div class="sheet__scrim" data-close></div>
@@ -458,9 +417,6 @@
       <span class="field__help">Vacío = usa tu promedio real de los últimos 30 días.</span>
     </label>
 
-    <h3 class="section-title">Plan</h3>
-    <div id="planBox"></div>
-
     <h3 class="section-title">Datos</h3>
     <div class="menu-list">
       <button class="menu-item" id="btnInstall" hidden><span>📲</span> Instalar en la pantalla de inicio</button>
@@ -485,21 +441,18 @@
 <script src="js/core/units.js?v=2.4.0"></script>
 <script src="js/core/store.js?v=2.4.0"></script>
 <script src="js/core/costing.js?v=2.4.0"></script>
-<script src="js/core/plan.js?v=2.4.0"></script>
-<script src="js/core/billing.js?v=2.4.0"></script>
 <script src="js/verticals/tamales.js?v=2.4.0"></script>
 <script src="js/ui/common.js?v=2.4.0"></script>
 <script src="js/ui/ventas.js?v=2.4.0"></script>
 <script src="js/ui/productos.js?v=2.4.0"></script>
 <script src="js/ui/insumos.js?v=2.4.0"></script>
 <script src="js/ui/ganancias.js?v=2.4.0"></script>
-<script src="js/ui/pro.js?v=2.4.0"></script>
 <script src="js/app.js?v=2.4.0"></script>
 <script>
 /* Autocuración: si el navegador mezcló archivos de dos versiones (caché vieja),
    borra cachés y service workers viejos y recarga UNA vez. Los datos no se tocan. */
 (function () {
-  var ok = window.TM && TM.app && TM.app.setView && TM.views && TM.views.productos && TM.views.pro && TM.store && TM.costing && TM.plan && TM.billing && TM.units && TM.money;
+  var ok = window.TM && TM.app && TM.app.setView && TM.views && TM.views.productos && TM.store && TM.costing && TM.units && TM.money;
   if (ok) return;
   var again = false;
   try { again = !!sessionStorage.getItem('tm-heal'); sessionStorage.setItem('tm-heal', '1'); } catch (e) {}

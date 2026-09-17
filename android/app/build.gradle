@@ -64,6 +64,4 @@ android {
 dependencies {
     // WebViewAssetLoader: sirve assets/www bajo https://appassets.androidplatform.net (origen seguro).
     implementation 'androidx.webkit:webkit:1.14.0'
-    // Google Play Billing para la versión Pro (Billing.java).
-    implementation 'com.android.billingclient:billing:8.3.0'
 }

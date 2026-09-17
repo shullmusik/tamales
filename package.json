@@ -16,8 +16,6 @@
     "start": "npx --yes serve . -l 8899",
     "check": "node -e \"for (const f of require('child_process').execSync('git ls-files \\\"*.js\\\" \\\"*.mjs\\\"').toString().trim().split(/\\r?\\n/)) require('child_process').execSync('node --check ' + f, {stdio:'inherit'}); console.log('sintaxis OK')\"",
     "release": "node tools/release.mjs",
-    "license:init": "node tools/license.mjs init",
-    "license:code": "node tools/license.mjs code",
     "android:apk": "cd android && gradle --no-daemon assembleRelease",
     "android:aab": "cd android && gradle --no-daemon bundleRelease",
     "android:ci": "echo \"Sube a main o corre Actions → Android APK → Run workflow; el APK/AAB queda en GitHub Releases\""

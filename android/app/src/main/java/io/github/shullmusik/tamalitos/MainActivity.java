@@ -28,10 +28,9 @@ import java.nio.charset.StandardCharsets;
  * en un WebView. No necesita el sitio en línea ni conexión para funcionar.
  *
  * El WebView sirve los archivos desde https://appassets.androidplatform.net/assets/www/
- * (origen seguro: localStorage estable, crypto.subtle para los códigos Pro).
+ * (origen seguro: localStorage estable).
  * Lo que un WebView no hace por sí solo se resuelve con el puente `TamalitosNative`:
- * guardar respaldos (diálogo "Guardar como"), imprimir a PDF, abrir WhatsApp y
- * Google Play Billing (ver Billing.java).
+ * guardar archivos (diálogo "Guardar como"), abrir WhatsApp y tomar la foto de un ticket.
  */
 public class MainActivity extends Activity {
     static final String HOST = "appassets.androidplatform.net";
@@ -40,7 +39,6 @@ public class MainActivity extends Activity {
 
     WebView web;
     WebViewAssetLoader loader;
-    Billing billing;
     String pendingContent;
     ValueCallback<Uri[]> pendingChooser;
 
@@ -97,7 +95,6 @@ public class MainActivity extends Activity {
             }
         });
 
-        billing = new Billing(this, web);
         web.addJavascriptInterface(new Bridge(), "TamalitosNative");
 
         if (savedInstanceState == null) web.loadUrl(BASE + "index.html" + viewParam(getIntent()));
@@ -192,8 +189,5 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public void openExternal(String url) { runOnUiThread(() -> MainActivity.this.openExternal(url)); }
 
-        @JavascriptInterface public void proDetails() { runOnUiThread(() -> billing.details()); }
-        @JavascriptInterface public void buyPro()     { runOnUiThread(() -> billing.buy()); }
-        @JavascriptInterface public void restorePro() { runOnUiThread(() -> billing.restore(true)); }
     }
 }
