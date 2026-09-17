@@ -33,5 +33,14 @@
                 <data android:scheme="tamalitos" />
             </intent-filter>
         </activity>
+
+        <!-- Comparte con la app de cámara la ruta donde guardar la foto del ticket. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="@string/file_provider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/file_paths" />
+        </provider>
     </application>
 </manifest>

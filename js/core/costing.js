@@ -24,22 +24,47 @@ TM.costing = (() => {
    * haya existencia: una subida de precio entra al costo poco a poco, conforme se agota
    * lo que se compró más barato (amortigua). Sin inventario, usa la última compra.
    */
-  function costPerBase(ins) {
+  function costPerBase(ins, depth) {
+    if (ins.kind === 'prep') return prepCostPerBase(ins, depth || 0);
     const mode = S().settings.costMode || 'avg';
     if (mode === 'avg' && ins.stock > 0 && ins.avgCost > 0) return ins.avgCost;
     return lastCostPerBase(ins);
+  }
+
+  /** Preparación (salsa, frijoles…): costo de sus ingredientes entre lo que rinde. Máximo 4 niveles. */
+  function prepCostPerBase(prep, depth) {
+    if (!prep.recipe || !(prep.recipe.yield > 0) || depth > 4) return 0;
+    let total = 0;
+    prep.recipe.items.forEach((it) => {
+      const child = TM.store.insumo(it.insumoId);
+      if (!child || child.id === prep.id) return;
+      total += costPerBase(child, depth + 1) * it.qty;
+    });
+    return total / prep.recipe.yield;
+  }
+
+  /** Costo total de una tanda de preparación (centavos) — para mostrar en su tarjeta. */
+  const prepBatchCost = (prep) => Math.round(prepCostPerBase(prep, 0) * (prep.recipe ? prep.recipe.yield : 0));
+
+  /** Productos cuya receta usa al insumo directamente o a través de una preparación. */
+  function affectedProducts(insumoId) {
+    const seen = new Set(), ids = [insumoId];
+    while (ids.length) {
+      const id = ids.pop(); if (seen.has(id)) continue; seen.add(id);
+      TM.store.prepsUsing(id).forEach((p) => ids.push(p.id));
+    }
+    return TM.store.products().filter((p) => p.recipe.items.some((it) => seen.has(it.insumoId)));
   }
 
   /** Existencias: cuánto alcanza. { stock, value, pieces, product } | null si no se lleva inventario. */
   function stockInfo(ins) {
     if (!TM.store.tracksStock(ins)) return null;
     let pieces = null, product = null;
-    TM.store.productsUsing(ins.id).forEach((p) => {
+    affectedProducts(ins.id).forEach((p) => {
       if (!p.active) return;
-      const it = p.recipe.items.find((x) => x.insumoId === ins.id);
-      if (!it || !(it.qty > 0)) return;
-      const perPiece = it.qty / (p.recipe.yield || 1);
-      const n = Math.floor(ins.stock / perPiece);
+      const need = consumption(p, 1).filter((c) => c.ins.id === ins.id).reduce((x, c) => x + c.qtyBase, 0);
+      if (!(need > 0)) return;
+      const n = Math.floor(ins.stock / need);
       if (pieces == null || n < pieces) { pieces = n; product = p; }
     });
     return { stock: ins.stock, value: Math.round(ins.stock * ins.avgCost), pieces, product };
@@ -48,8 +73,15 @@ TM.costing = (() => {
   /** Consumo de insumos al producir `pieces` piezas de un producto: [{ins, qtyBase}]. */
   function consumption(p, pieces) {
     if (!hasRecipe(p) || !pieces) return [];
-    return p.recipe.items.map((it) => ({ ins: TM.store.insumo(it.insumoId), qtyBase: (it.qty * pieces) / p.recipe.yield }))
-      .filter((c) => c.ins && TM.store.tracksStock(c.ins));
+    const out = [];
+    const expand = (items, factor, depth) => items.forEach((it) => {
+      const ins = TM.store.insumo(it.insumoId); if (!ins) return;
+      const qty = it.qty * factor;
+      if (ins.kind === 'prep') { if (ins.recipe && ins.recipe.yield > 0 && depth < 4) expand(ins.recipe.items, qty / ins.recipe.yield, depth + 1); return; }
+      if (TM.store.tracksStock(ins)) out.push({ ins, qtyBase: qty });
+    });
+    expand(p.recipe.items, pieces / p.recipe.yield, 0);
+    return out;
   }
 
   /** Descuenta (delta > 0) o devuelve (delta < 0) existencias por producción registrada. */
@@ -97,7 +129,7 @@ TM.costing = (() => {
     if (!s.allocateFixed) return 0;
     const monthly = fixedMonthly();
     const perDay = s.expectedPerDay > 0 ? s.expectedPerDay : avgMadePerDay();
-    const pieces = perDay * (s.workDays || 26);
+    const pieces = perDay * sellDaysPerMonth();
     return pieces > 0 ? Math.round(monthly / pieces) : 0;
   }
 
@@ -144,7 +176,7 @@ TM.costing = (() => {
    * Devuelve los productos afectados.
    */
   function recompute(causeId) {
-    const affected = causeId ? TM.store.productsUsing(causeId) : TM.store.products();
+    const affected = causeId ? affectedProducts(causeId) : TM.store.products();
     const changed = [];
     affected.forEach((p) => {
       const now = variableCost(p);
@@ -181,6 +213,22 @@ TM.costing = (() => {
   /* ------------------------------------------ gastos fijos y equilibrio */
 
   const fixedMonthly = () => S().fixedCosts.reduce((a, f) => a + (f.amount || 0), 0);
+
+  /* ------------------------------------------------ días de venta */
+  const WEEKS_PER_MONTH = 365.25 / 12 / 7;                   // 4.35
+  const sellDays = () => (S().settings.sellDays || []).filter((d) => d >= 0 && d <= 6);
+  /** ¿Se vende ese día? Sin días configurados, todos los días valen. */
+  const isSellDay = (iso) => { const sd = sellDays(); return !sd.length || sd.indexOf(TM.ui.dateFromISO(iso).getDay()) >= 0; };
+  /** Días de venta por mes: p. ej. solo domingos → 4.35. */
+  const sellDaysPerMonth = () => { const sd = sellDays(); return sd.length ? sd.length * WEEKS_PER_MONTH : (S().settings.workDays || 26); };
+  /** Gastos fijos que debe cubrir cada día de venta. */
+  const fixedPerSellDay = () => Math.round(fixedMonthly() / sellDaysPerMonth());
+  /** Etiqueta: "domingo" si solo se vende un día, si no "día de venta". */
+  function sellDayLabel(plural) {
+    const sd = sellDays();
+    if (sd.length === 1) { const n = TM.ui.DIAS[sd[0]]; return plural ? n + 's' : n; }
+    return plural ? 'días de venta' : 'día de venta';
+  }
 
   /** Promedio de piezas producidas por día con movimiento (últimos 30 días con datos). */
   function avgMadePerDay() {
@@ -219,7 +267,7 @@ TM.costing = (() => {
     });
 
     const unitsMonth = cmWeighted > 0 ? Math.ceil(fixed / cmWeighted) : null;
-    const workDays = s.workDays || 26;
+    const workDays = sellDaysPerMonth();
 
     // avance del mes en curso
     const pre = TM.ui ? TM.ui.todayISO().slice(0, 7) : new Date().toISOString().slice(0, 7);
@@ -238,6 +286,7 @@ TM.costing = (() => {
       avgPrice: Math.round(priceWeighted),
       unitsMonth,
       unitsDay: unitsMonth != null ? Math.ceil(unitsMonth / workDays) : null,
+      dayLabel: sellDayLabel(false), dayLabelPlural: sellDayLabel(true),
       revenueMonth: unitsMonth != null ? unitsMonth * Math.round(priceWeighted) : null,
       monthSold, monthContribution,
       covered: fixed > 0 ? Math.min(1, monthContribution / fixed) : 1
@@ -282,16 +331,18 @@ TM.costing = (() => {
     }).sort((a, b) => b.sold - a.sold);
     t.eff = t.made > 0 ? (t.sold / t.made) * 100 : 0;
     t.days = days.length;
-    // gastos fijos prorrateados al periodo: mensual × días del periodo / 30
-    t.fixed = Math.round(fixedMonthly() * (days.length / 30));
+    // gastos fijos del periodo: lo que toca a cada día de venta × días de venta del periodo
+    const sd = sellDays();
+    t.sellDaysInPeriod = sd.length ? days.filter(isSellDay).length : days.length;
+    t.fixed = sd.length ? fixedPerSellDay() * t.sellDaysInPeriod : Math.round(fixedMonthly() * (days.length / 30));
     t.net = t.gross - t.fixed;
     return { rows, total: t, days };
   }
 
   return {
-    costPerBase, lastCostPerBase, stockInfo, consumption, applyProduction, lastChange, hasRecipe, materialCost, overheadCost, fixedAllocation, variableCost,
+    costPerBase, lastCostPerBase, prepCostPerBase, prepBatchCost, affectedProducts, stockInfo, consumption, applyProduction, lastChange, hasRecipe, materialCost, overheadCost, fixedAllocation, variableCost,
     unitCost, marginOf, suggestedPrice, marginPct, summary,
     recompute, acceptReview, reviewMessage,
-    fixedMonthly, avgMadePerDay, breakEven, metrics, aggregate
+    fixedMonthly, sellDays, isSellDay, sellDaysPerMonth, fixedPerSellDay, sellDayLabel, avgMadePerDay, breakEven, metrics, aggregate
   };
 })();

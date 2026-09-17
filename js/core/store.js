@@ -13,10 +13,13 @@
        workDays: 26,                            // días de venta al mes (punto de equilibrio)
        allocateFixed: false,                    // ¿prorratear gastos fijos en el costo unitario?
        expectedPerDay: 0,                       // piezas/día para prorratear (0 = usar historial)
-       costMode: "avg"                          // "avg": costo promedio del inventario (amortigua) | "last": última compra
+       costMode: "avg",                         // "avg": costo promedio del inventario (amortigua) | "last": última compra
+       sellDays: [0]                            // días de la semana en que se vende (0 = domingo … 6 = sábado)
      },
      insumos: [{
        id, name, emoji,
+       kind: "raw" | "prep",                    // materia prima | preparación intermedia (salsa, frijoles…)
+       recipe: { yield: 2000, yieldUnit: "kg", items: [{ insumoId, qty, unit, shown }] },  // solo "prep": rinde 2000 g
        buyUnit: "kg",                           // unidad en la que se compra (units.js)
        buyQty: 20,                              // cuántas unidades trae la compra (bulto de 20 kg)
        buyPrice: 52000,                         // centavos por esa compra
@@ -30,6 +33,7 @@
      }],
      products: [{
        id, name, emoji, active,
+       category: "tamales",                     // clave de categoría de la verticalización (menú agrupado)
        price: 1800,                             // precio de venta (centavos)
        recipe: { mode: "batch", yield: 40,      // "batch": cantidades por tanda | "piece": por pieza (yield = 1)
                  items: [{ insumoId, qty, unit, shown }] },   // qty en unidad BASE; unit/shown = como se capturó ("2 cda")
@@ -41,6 +45,8 @@
      }],
      reviews: [{ id, productId, oldCost, newCost, causes: [insumoId], at }],  // precios por revisar
      fixedCosts: [{ id, name, emoji, amount }],  // centavos por mes
+     tickets: [{ id, at, store, total, note, photoId,   // compras (ticket = una o varias líneas)
+                 lines: [{ insumoId, qtyBase, total, buyQty, buyUnit }] }],   // photoId vive en IndexedDB
      days: { "2026-09-08": { productId: { made, sold, lost, price, cost } } }  // cost = costo variable del día
    }
    ========================================================================== */
@@ -54,12 +60,13 @@ TM.store = (() => {
 
   const blank = () => ({
     v: 2,
-    vertical: 'tamales',
-    settings: { biz: '', phone: '', targetMargin: 45, priceStep: 50, workDays: 26, allocateFixed: false, expectedPerDay: 0, costMode: 'avg' },
+    vertical: 'cafeteria',
+    settings: { biz: '', phone: '', targetMargin: 45, priceStep: 50, workDays: 26, allocateFixed: false, expectedPerDay: 0, costMode: 'avg', sellDays: [0] },
     insumos: [],
     products: [],
     reviews: [],
     fixedCosts: [],
+    tickets: [],
     days: {}
   });
 
@@ -92,15 +99,24 @@ TM.store = (() => {
     d = Object.assign(b, d || {});
     d.v = 2;
     d.settings = Object.assign(blank().settings, d.settings || {});
+    if (!Array.isArray(d.settings.sellDays)) d.settings.sellDays = [0];
+    if (d.vertical === 'tamales' || !TM.verticals || !TM.verticals[d.vertical]) d.vertical = 'cafeteria';
     d.insumos = (d.insumos || []).map((i) => Object.assign({
       emoji: '🧺', buyUnit: 'pz', buyQty: 1, buyPrice: 0, history: [], createdAt: 0, updatedAt: 0,
       kitchen: {},          // equivalencias propias: { cdta: 6, cda: 18, taza: 130 } en unidad base
       stock: 0,             // existencia en unidad base
       avgCost: 0,           // costo promedio ponderado del inventario (centavos por unidad base, flotante)
-      purchases: []         // [{ at, qtyBase, total, buyQty, buyUnit }]
-    }, i, { base: TM.units.baseOf(i.buyUnit || 'pz') }));
+      purchases: [],        // [{ at, qtyBase, total, buyQty, buyUnit }]
+      kind: 'raw',          // 'raw' | 'prep'
+      recipe: null          // solo preparaciones: { yield, yieldUnit, items }
+    }, i, { base: i.kind === 'prep' ? (i.base || 'g') : TM.units.baseOf(i.buyUnit || 'pz') }));
+    d.insumos.forEach((i) => {
+      if (i.kind !== 'prep') { i.kind = 'raw'; i.recipe = null; return; }
+      i.recipe = Object.assign({ yield: 1, yieldUnit: i.base, items: [] }, i.recipe || {});
+      i.recipe.items = (i.recipe.items || []).map((it) => ({ insumoId: it.insumoId, qty: it.qty | 0, unit: it.unit || null, shown: it.shown == null ? null : it.shown }));
+    });
     d.products = (d.products || []).map((p) => Object.assign({
-      emoji: '🫔', active: true, price: 0, costManual: null, targetMargin: null, lastCost: 0, createdAt: 0
+      emoji: '🫔', active: true, price: 0, costManual: null, targetMargin: null, lastCost: 0, createdAt: 0, category: ''
     }, p, {
       recipe: Object.assign({ yield: 1, mode: 'batch', items: [] }, p.recipe || {}),   // mode: 'batch' | 'piece'
       extras: Object.assign({ gasPerBatch: 0, laborPerBatch: 0, packPerPiece: 0 }, p.extras || {})
@@ -111,6 +127,7 @@ TM.store = (() => {
     });
     d.reviews = d.reviews || [];
     d.fixedCosts = d.fixedCosts || [];
+    d.tickets = (d.tickets || []).map((t) => Object.assign({ store: '', total: 0, note: '', photoId: null, lines: [] }, t));
     d.days = d.days || {};
     return d;
   }
@@ -196,14 +213,33 @@ TM.store = (() => {
       const i = byId(data.insumos, id); if (!i) return null;
       const priceChanged = patch.buyPrice != null && (patch.buyPrice !== i.buyPrice || patch.buyQty !== i.buyQty || patch.buyUnit !== i.buyUnit);
       Object.assign(i, patch);
-      i.base = TM.units.baseOf(i.buyUnit);
+      if (i.kind !== 'prep') i.base = TM.units.baseOf(i.buyUnit);
       i.updatedAt = Date.now();
       if (priceChanged) i.history.push({ at: i.updatedAt, buyPrice: i.buyPrice, buyQty: i.buyQty, buyUnit: i.buyUnit });
       save(); return i;
     },
+    /** Insumos que usan a este insumo dentro de una preparación (para avisos y ciclos). */
+    prepsUsing: (insumoId) => data.insumos.filter((i) => i.kind === 'prep' && i.recipe && i.recipe.items.some((it) => it.insumoId === insumoId)),
+
+    /* tickets / compras */
+    ticket: (id) => byId(data.tickets, id),
+    /** Guarda un ticket y registra cada línea como compra del insumo (inventario + promedio). */
+    addTicket(t) {
+      t = Object.assign({ at: Date.now(), store: '', total: 0, note: '', photoId: null, lines: [] }, t);
+      t.id = uid();
+      t.lines = t.lines.filter((l) => l.insumoId && l.qtyBase > 0 && l.total >= 0);
+      t.lines.forEach((l) => api.addPurchase(l.insumoId, { qtyBase: l.qtyBase, total: l.total, at: t.at, buyQty: l.buyQty, buyUnit: l.buyUnit }));
+      if (!t.total) t.total = t.lines.reduce((a, l) => a + l.total, 0);
+      data.tickets.push(t); save(); return t;
+    },
+    updateTicket(id, patch) { const t = byId(data.tickets, id); if (t) Object.assign(t, patch); save(); return t; },
+    /** Borra el ticket; las compras ya aplicadas al inventario no se revierten (se avisa en la UI). */
+    removeTicket(id) { data.tickets = data.tickets.filter((t) => t.id !== id); save(); },
+
     removeInsumo(id) {
       data.insumos = data.insumos.filter((i) => i.id !== id);
       data.products.forEach((p) => { p.recipe.items = p.recipe.items.filter((it) => it.insumoId !== id); });
+      data.insumos.forEach((i) => { if (i.recipe) i.recipe.items = i.recipe.items.filter((it) => it.insumoId !== id); });
       save();
     },
     /** productos cuya receta usa el insumo */

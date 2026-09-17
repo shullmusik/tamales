@@ -1,5 +1,5 @@
 /* ==========================================================================
-   Tamalitos — Service Worker
+   Cafetería Lauri — Service Worker
    ---------------------------------------------------------------------------
    Estrategia:
    · App shell precacheado con URLs VERSIONADAS (?v=…) y descarga forzada desde
@@ -11,8 +11,8 @@
    (o corre `node tools/release.mjs <versión>`, que hace las dos cosas).
    ========================================================================== */
 
-var VERSION = '2.4.0';
-var CACHE = 'tamalitos-' + VERSION;
+var VERSION = '3.0.0';
+var CACHE = 'lauri-' + VERSION;
 
 var SHELL = [
   './',
@@ -27,8 +27,11 @@ var SHELL = [
   './js/core/units.js?v=' + VERSION,
   './js/core/store.js?v=' + VERSION,
   './js/core/costing.js?v=' + VERSION,
-  './js/verticals/tamales.js?v=' + VERSION,
+  './js/core/files.js?v=' + VERSION,
+  './js/core/ocr.js?v=' + VERSION,
+  './js/verticals/cafeteria.js?v=' + VERSION,
   './js/ui/common.js?v=' + VERSION,
+  './js/ui/recipe.js?v=' + VERSION,
   './js/ui/ventas.js?v=' + VERSION,
   './js/ui/productos.js?v=' + VERSION,
   './js/ui/insumos.js?v=' + VERSION,

@@ -1,18 +1,21 @@
 /* ==========================================================================
-   ui/productos.js — productos terminados: receta, costeo por pieza, precio
-   Incluye el panel de "precios por revisar" del motor de precios dinámicos.
+   ui/productos.js — menú: productos por categoría, receta, costeo por pieza,
+   precio sugerido y panel de "precios por revisar" del motor de precios.
    ========================================================================== */
 window.TM = window.TM || {};
 
 TM.views = TM.views || {};
 TM.views.productos = (() => {
-  const U = TM.ui, S = TM.store, C = TM.costing, M = TM.money, UN = TM.units;
+  const U = TM.ui, S = TM.store, C = TM.costing, M = TM.money;
   const { $, $$, esc } = U;
   const L = () => TM.vertical.labels;
+  const CATS = () => TM.vertical.categories || [];
+  const catOf = (id) => CATS().find((c) => c.id === id) || { id: 'otros', label: 'Otros', emoji: '🍽️' };
 
   let editing = null;
   let draft = null;          // copia de trabajo del producto en la hoja
   let pane = 'basico';
+  let recipeEd = null;
 
   /* ============================================================ lista */
   function render() {
@@ -21,7 +24,7 @@ TM.views.productos = (() => {
     const prods = S.products();
     if (!prods.length) {
       $('#productStrip').innerHTML = '';
-      list.innerHTML = U.empty('🫔', `Empieza por tus ${L().products}`,
+      list.innerHTML = U.empty('🫔', 'Arma tu menú',
         'Da de alta cada producto con su receta (o con un costo a mano si aún no la tienes). La app calcula el costo por pieza y te sugiere el precio.',
         'emptyProduct', `Añadir mi primer ${L().product}`);
       $('#emptyProduct').addEventListener('click', () => open(null));
@@ -36,27 +39,43 @@ TM.views.productos = (() => {
       U.stat(Math.round(avgMargin) + '%', 'Margen prom.', avgMargin >= S.data.settings.targetMargin ? 'ok' : 'alert') +
       U.stat(below, 'Bajo objetivo', below ? 'alert' : 'ok');
 
-    list.innerHTML = sums.map(({ p, s }) => `
-      <article class="card${p.active ? '' : ' card--off'}${s.needsReview ? ' card--review' : ''}">
+    // agrupado por categoría en el orden de la verticalización
+    const groups = CATS().map((c) => ({ c, items: sums.filter((x) => (x.p.category || 'otros') === c.id) })).filter((g) => g.items.length);
+    const orphan = sums.filter((x) => !CATS().some((c) => c.id === (x.p.category || 'otros')));
+    if (orphan.length) groups.push({ c: catOf('otros'), items: orphan });
+
+    list.innerHTML = groups.map((g) => `
+      <h2 class="group-title"><span>${g.c.emoji}</span> ${esc(g.c.label)} <small>${g.items.length}</small></h2>
+      <div class="cards cards--grid">${g.items.map(card).join('')}</div>`).join('');
+  }
+
+  function card({ p, s }) {
+    const marginPct = Math.max(0, Math.min(100, Math.round(s.currentMargin)));
+    return `
+      <article class="card pcard${p.active ? '' : ' card--off'}${s.needsReview ? ' card--review' : ''}">
         <button class="prod" data-edit="${p.id}">
-          <span class="prod__emoji">${esc(p.emoji)}</span>
+          <span class="prod__emoji prod__emoji--lg">${esc(p.emoji)}</span>
           <span class="prod__body">
             <span class="prod__name">${esc(p.name)}</span>
-            <span class="prod__meta">Cuesta ${M.fmt(s.cost.total)} · se vende en ${M.fmt(p.price)}</span>
+            <span class="prod__meta"><b class="price">${M.fmt(p.price)}</b> · cuesta ${M.fmt(s.cost.total)}</span>
             <span class="prod__meta prod__meta--sub">${s.cost.breakdown.manual ? 'Costo capturado a mano' : `Insumos ${M.fmt(s.cost.material)} + operación ${M.fmt(s.cost.overhead)}${s.cost.fixed ? ' + fijos ' + M.fmt(s.cost.fixed) : ''}`}</span>
           </span>
           <span class="prod__margin">
             <b class="${s.unitProfit < 0 ? 'is-neg' : ''}">${M.fmt(s.unitProfit)}</b>
-            <span>${Math.round(s.currentMargin)}% margen</span>
+            <span>ganancia</span>
           </span>
         </button>
+        <div class="pcard__margin">
+          <span class="bar"><span class="bar__fill${s.currentMargin < s.margin ? ' is-warn' : ''}" style="width:${marginPct}%"></span></span>
+          <small>${Math.round(s.currentMargin)}% de margen · objetivo ${s.margin}%</small>
+        </div>
         <div class="card__foot">
-          <small>${s.unitProfit < 0 ? '⚠️ Vendes con pérdida' : s.belowTarget ? `Objetivo ${s.margin}% → sugerido <b>${M.fmt(s.suggested)}</b>` : `✓ Cumple el ${s.margin}% objetivo`}</small>
+          <small>${s.unitProfit < 0 ? '⚠️ Vendes con pérdida' : s.belowTarget ? `Sugerido <b>${M.fmt(s.suggested)}</b>` : '✓ Cumple el objetivo'}</small>
           <button class="switch${p.active ? ' is-on' : ''}" data-toggle="${p.id}" aria-pressed="${p.active}">
-            <span class="switch__label">${p.active ? 'Activo' : 'Pausado'}</span><span class="switch__track"></span>
+            <span class="switch__label">${p.active ? 'En menú' : 'Pausado'}</span><span class="switch__track"></span>
           </button>
         </div>
-      </article>`).join('');
+      </article>`;
   }
 
   /* -------------------------------------------------- precios por revisar */
@@ -92,7 +111,8 @@ TM.views.productos = (() => {
     const p = id ? S.product(id) : null;
     editing = id;
     draft = p ? JSON.parse(JSON.stringify(p)) : {
-      name: '', emoji: TM.vertical.emojis.product[0], price: 0, costManual: null, targetMargin: null,
+      name: '', emoji: TM.vertical.emojis.product[0], category: CATS()[0] ? CATS()[0].id : 'otros',
+      price: 0, costManual: null, targetMargin: null,
       recipe: { mode: 'batch', yield: 40, items: [] }, extras: { gasPerBatch: 0, laborPerBatch: 0, packPerPiece: 0 }
     };
     $('#sheetProductTitle').textContent = p ? `Editar ${L().product}` : `Nuevo ${L().product}`;
@@ -117,11 +137,11 @@ TM.views.productos = (() => {
   function renderBasico() {
     $('#pName').value = draft.name;
     $('#pEmojiRow').innerHTML = U.emojiRow(TM.vertical.emojis.product, draft.emoji);
+    $('#pCategory').innerHTML = CATS().map((c) => `<option value="${c.id}"${c.id === (draft.category || 'otros') ? ' selected' : ''}>${c.emoji} ${esc(c.label)}</option>`).join('');
     $('#pPrice').value = M.input(draft.price);
     $('#pMargin').value = draft.targetMargin == null ? '' : draft.targetMargin;
     $('#pMargin').placeholder = `${S.data.settings.targetMargin}% (global)`;
-    const noRecipe = !draft.recipe.items.length;
-    $('#pManualWrap').hidden = !noRecipe;
+    $('#pManualWrap').hidden = draft.recipe.items.length > 0;
     $('#pCostManual').value = M.input(draft.costManual || 0);
   }
 
@@ -138,39 +158,7 @@ TM.views.productos = (() => {
     $('#rModeHelp').textContent = piece
       ? `Captura lo que lleva UN ${L().product}. El costo es directo.`
       : `Captura lo que lleva toda la ${L().batch}; la app divide el costo entre las piezas que rinde.`;
-    const insumos = S.data.insumos.slice().sort((a, b) => a.name.localeCompare(b.name, 'es'));
-    const rows = $('#rItems');
-    if (!insumos.length) {
-      rows.innerHTML = `<p class="hint">Aún no tienes insumos. Crea el primero aquí mismo: la app calcula el costo por gramo, mililitro o pieza.</p>`;
-      $('#rAdd').hidden = true; return;
-    }
-    $('#rAdd').hidden = false;
-    rows.innerHTML = draft.recipe.items.map((it, idx) => {
-      const ins = S.insumo(it.insumoId);
-      const base = ins ? ins.base : 'g';
-      const shown = it.unit && it.shown != null ? { qty: it.shown, unit: it.unit } : UN.fromBase(it.qty, base);
-      return `
-      <div class="ritem" data-idx="${idx}">
-        <select class="field__input ritem__ins" data-ins="${idx}" aria-label="Insumo">
-          ${insumos.map((i) => `<option value="${i.id}"${i.id === it.insumoId ? ' selected' : ''}>${esc(i.emoji + ' ' + i.name)}</option>`).join('')}
-        </select>
-        <input class="field__input ritem__qty" type="number" inputmode="decimal" min="0" step="any" value="${shown.qty || ''}" data-qty="${idx}" aria-label="Cantidad" placeholder="0">
-        <select class="field__input ritem__unit" data-unit="${idx}" aria-label="Unidad">
-          ${UN.forBase(base).map((u) => `<option value="${u}"${u === shown.unit ? ' selected' : ''}>${UN.label(u).replace(/ \(.*\)$/, '')}</option>`).join('')}
-        </select>
-        <button type="button" class="ritem__del" data-del="${idx}" aria-label="Quitar ingrediente">✕</button>
-        <small class="ritem__cost">${rowCostText(it, ins)}</small>
-      </div>`;
-    }).join('');
-    if (!draft.recipe.items.length) rows.innerHTML = `<p class="hint">Sin ingredientes todavía. Toca «Añadir ingrediente».</p>`;
-  }
-
-  /** "$65.00 por tanda" o, con medidas de cocina, "$0.45 por tanda · = 30 g". */
-  function rowCostText(it, ins) {
-    if (!ins) return 'Insumo eliminado';
-    const cost = C.costPerBase(ins) * it.qty;
-    const eq = it.unit && UN.isKitchen(it.unit) ? ` · = ${UN.fmt(it.qty, ins.base)}` : '';
-    return `${M.fmt(Math.round(cost))} por ${perLabel()}${eq}`;
+    recipeEd.render();
   }
 
   /* ---- operación ---- */
@@ -215,6 +203,7 @@ TM.views.productos = (() => {
   /* ---- lectura de campos al vuelo ---- */
   function readBasico() {
     draft.name = $('#pName').value.trim();
+    draft.category = $('#pCategory').value;
     draft.price = M.cents($('#pPrice').value);
     const m = $('#pMargin').value.trim();
     draft.targetMargin = m === '' ? null : Math.min(95, Math.max(0, Number(m) || 0));
@@ -235,7 +224,7 @@ TM.views.productos = (() => {
     if (!(draft.price > 0)) { showPane('basico'); U.toast('Escribe el precio de venta'); $('#pPrice').focus(); return; }
     draft.recipe.items = draft.recipe.items.filter((it) => S.insumo(it.insumoId) && it.qty > 0);
     const patch = {
-      name: draft.name, emoji: draft.emoji, price: draft.price, costManual: draft.costManual,
+      name: draft.name, emoji: draft.emoji, category: draft.category, price: draft.price, costManual: draft.costManual,
       targetMargin: draft.targetMargin, recipe: draft.recipe, extras: draft.extras
     };
     if (editing) {
@@ -245,7 +234,7 @@ TM.views.productos = (() => {
     } else {
       const p = S.addProduct(patch);
       S.updateProduct(p.id, { lastCost: C.variableCost(p) });
-      U.toast('Producto añadido');
+      U.toast('Producto añadido al menú');
     }
     U.closeSheets();
     TM.app.render();
@@ -253,6 +242,13 @@ TM.views.productos = (() => {
 
   /* ============================================================ eventos */
   function wire() {
+    recipeEd = U.recipeEditor({
+      container: $('#rItems'), addBtn: $('#rAdd'), newBtn: $('#rNewInsumo'),
+      getItems: () => draft.recipe.items,
+      perLabel,
+      onChange: renderCostBox
+    });
+
     $('#productList').addEventListener('click', (ev) => {
       const edit = ev.target.closest('[data-edit]');
       if (edit) { U.buzz(); open(edit.dataset.edit); return; }
@@ -260,7 +256,7 @@ TM.views.productos = (() => {
       if (tog) {
         const p = S.product(tog.dataset.toggle);
         S.updateProduct(p.id, { active: !p.active }); U.buzz(); render();
-        U.toast(p.active ? 'Producto activo' : 'Producto pausado');
+        U.toast(p.active ? 'De vuelta en el menú' : 'Producto pausado');
       }
     });
     $('#reviews').addEventListener('click', (ev) => {
@@ -279,6 +275,7 @@ TM.views.productos = (() => {
     });
     U.wireEmojiRow($('#pEmojiRow'), (e) => { draft.emoji = e; });
     ['#pPrice', '#pMargin', '#pCostManual'].forEach((s) => $(s).addEventListener('input', () => { readBasico(); renderCostBox(); }));
+    $('#pCategory').addEventListener('change', readBasico);
     $('#rYield').addEventListener('input', () => { readReceta(); renderCostBox(); });
     $('#rMode').addEventListener('click', (ev) => {
       const b = ev.target.closest('[data-mode]'); if (!b) return;
@@ -288,40 +285,7 @@ TM.views.productos = (() => {
       else if (draft.recipe.yield <= 1) draft.recipe.yield = 40;
       renderReceta(); renderCostBox(); U.buzz(8);
     });
-    $('#rNewInsumo').addEventListener('click', () => {
-      readReceta();
-      TM.views.insumos.open(null, (ins) => {
-        draft.recipe.items.push({ insumoId: ins.id, qty: 0, unit: null, shown: null });
-        renderReceta(); renderCostBox();
-        const last = $$('#rItems [data-qty]').pop(); if (last) last.focus();
-      });
-    });
     ['#oGas', '#oLabor', '#oPack'].forEach((s) => $(s).addEventListener('input', () => { readOperacion(); renderCostBox(); }));
-
-    // receta: filas dinámicas
-    $('#rAdd').addEventListener('click', () => {
-      const first = S.data.insumos[0]; if (!first) return;
-      readReceta();
-      draft.recipe.items.push({ insumoId: first.id, qty: 0, unit: null, shown: null });
-      renderReceta(); renderCostBox();
-      const last = $$('#rItems [data-qty]').pop(); if (last) last.focus();
-    });
-    $('#rItems').addEventListener('change', (ev) => {
-      const t = ev.target;
-      if (t.dataset.ins != null) {
-        const it = draft.recipe.items[+t.dataset.ins]; it.insumoId = t.value; it.qty = 0; it.unit = null; it.shown = null;
-        renderReceta(); renderCostBox(); return;
-      }
-      if (t.dataset.unit != null) { applyQty(+t.dataset.unit); updateRowCost(+t.dataset.unit); renderCostBox(); }
-    });
-    $('#rItems').addEventListener('input', (ev) => {
-      const t = ev.target;
-      if (t.dataset.qty != null) { applyQty(+t.dataset.qty); updateRowCost(+t.dataset.qty); renderCostBox(); }
-    });
-    $('#rItems').addEventListener('click', (ev) => {
-      const d = ev.target.closest('[data-del]'); if (!d) return;
-      draft.recipe.items.splice(+d.dataset.del, 1); renderReceta(); renderCostBox(); U.buzz(8);
-    });
 
     $('#pDelete').addEventListener('click', () => {
       const p = S.product(editing); if (!p) return;
@@ -330,18 +294,5 @@ TM.views.productos = (() => {
     });
   }
 
-  function applyQty(idx) {
-    const row = $(`.ritem[data-idx="${idx}"]`); if (!row) return;
-    const qty = $('[data-qty]', row).value, unit = $('[data-unit]', row).value;
-    const it = draft.recipe.items[idx], ins = S.insumo(it.insumoId);
-    it.unit = unit; it.shown = qty === '' ? null : Number(qty);
-    it.qty = UN.toBase(qty, unit, ins);
-  }
-  function updateRowCost(idx) {
-    const row = $(`.ritem[data-idx="${idx}"]`); if (!row) return;
-    const it = draft.recipe.items[idx];
-    $('.ritem__cost', row).textContent = rowCostText(it, S.insumo(it.insumoId));
-  }
-
-  return { render, wire, open };
+  return { render, wire, open, catOf };
 })();

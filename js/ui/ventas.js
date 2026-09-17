@@ -20,6 +20,7 @@ TM.views.ventas = (() => {
     $('#dayLabel').textContent = U.humanDate(st.day);
     $('#btnHoy').hidden = st.day === U.todayISO();
     $('#dayNext').disabled = st.day >= U.todayISO();
+    $('#dayNote').textContent = C.sellDays().length ? `Vendes ${C.sellDays().length === 1 ? 'los ' + C.sellDayLabel(true) : C.sellDays().map((d) => U.DIAS[d].slice(0, 3)).join(', ')}` : '';
 
     if (!prods.length) {
       $('#dayStrip').innerHTML = '';
@@ -28,7 +29,17 @@ TM.views.ventas = (() => {
       $('#goProducts').addEventListener('click', () => TM.app.setView('productos'));
       return;
     }
-    list.innerHTML = prods.map((p) => card(p, S.entry(st.day, p.id) || Object.assign({ made: 0, sold: 0, lost: 0 }, snapshot(p)))).join('');
+    const CATS = TM.vertical.categories || [];
+    const catOf = TM.views.productos.catOf;
+    const groups = CATS.map((c) => ({ c, items: prods.filter((p) => (p.category || 'otros') === c.id) })).filter((g) => g.items.length);
+    const orphan = prods.filter((p) => !CATS.some((c) => c.id === (p.category || 'otros')));
+    if (orphan.length) groups.push({ c: catOf('otros'), items: orphan });
+    const sellNote = C.sellDays().length && !C.isSellDay(st.day)
+      ? `<div class="insight insight--tip"><span>📅</span><div>Este día no vendes (abres ${TM.ui.esc(C.sellDayLabel(true))}). Puedes capturar de todos modos; las flechas saltan al ${TM.ui.esc(C.sellDayLabel(false))} anterior o siguiente.</div></div>`
+      : '';
+    list.innerHTML = sellNote + groups.map((g) => `
+      <h2 class="group-title"><span>${g.c.emoji}</span> ${TM.ui.esc(g.c.label)}</h2>
+      <div class="cards cards--grid">${g.items.map((p) => card(p, S.entry(st.day, p.id) || Object.assign({ made: 0, sold: 0, lost: 0 }, snapshot(p)))).join('')}</div>`).join('');
     strip();
   }
 
@@ -117,10 +128,16 @@ TM.views.ventas = (() => {
   }
 
   function wire() {
-    $('#dayPrev').addEventListener('click', () => { U.state.day = U.shiftISO(U.state.day, -1); U.buzz(8); render(); });
+    const step = (dir) => {
+      let d = U.shiftISO(U.state.day, dir);
+      if (C.sellDays().length) { let n = 0; while (!C.isSellDay(d) && n++ < 7) d = U.shiftISO(d, dir); }
+      return d;
+    };
+    $('#dayPrev').addEventListener('click', () => { U.state.day = step(-1); U.buzz(8); render(); });
     $('#dayNext').addEventListener('click', () => {
-      if (U.state.day >= U.todayISO()) return;
-      U.state.day = U.shiftISO(U.state.day, 1); U.buzz(8); render();
+      const d = step(1);
+      if (d > U.todayISO()) return;
+      U.state.day = d; U.buzz(8); render();
     });
     $('#dayInput').addEventListener('change', (ev) => { if (ev.target.value) { U.state.day = ev.target.value; render(); } });
     $('#btnHoy').addEventListener('click', () => { U.state.day = U.todayISO(); render(); });

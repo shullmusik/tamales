@@ -108,7 +108,8 @@ TM.ui = (() => {
   function barChart(canvas, items) {
     const rowH = 46, pad = 6;
     const { ctx, w, font } = prepCanvas(canvas, items.length * rowH + pad * 2);
-    const max = Math.max(...items.map((i) => i.value)) || 1;
+    const val = (i) => (i.raw != null ? i.raw : i.value);
+    const max = Math.max(...items.map(val)) || 1;
     items.forEach((it, i) => {
       const y = pad + i * rowH, barY = y + 22;
       ctx.font = `600 13px ${font}`; ctx.fillStyle = cssVar('--tinta'); ctx.textAlign = 'left';
@@ -116,7 +117,7 @@ TM.ui = (() => {
       ctx.font = `800 13px ${font}`; ctx.fillStyle = it.color; ctx.textAlign = 'right';
       ctx.fillText(it.value + (it.note ? '  ·  ' + it.note : ''), w, y + 15);
       roundRect(ctx, 0, barY, w, 10, 5, cssVar('--linea'));
-      roundRect(ctx, 0, barY, Math.max(4, (it.value / max) * w), 10, 5, it.color);
+      roundRect(ctx, 0, barY, Math.max(4, (val(it) / max) * w), 10, 5, it.color);
     });
   }
 
@@ -206,8 +207,15 @@ TM.ui = (() => {
   /* ------------------------------------------------------------ estado */
   const state = { view: 'ventas', day: todayISO(), range: 'day' };
 
+  /** Filas → CSV con BOM (Excel en español lo abre con acentos) y descarga/guarda. */
+  function saveCsv(name, rows) {
+    const cell = (v) => { const t = String(v == null ? '' : v); return /[",;\n]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t; };
+    const csv = '\uFEFF' + rows.map((r) => r.map(cell).join(',')).join('\r\n');
+    saveFile(name, 'text/csv;charset=utf-8', csv);
+  }
+
   return {
-    $, $$, esc, int, num, cssVar,
+    $, $$, esc, int, num, cssVar, saveCsv,
     DIAS, MESES, isoOf, todayISO, dateFromISO, shiftISO, humanDate, longDate, ago,
     buzz, toast, openSheet, closeSheet, closeSheets, emojiRow, wireEmojiRow,
     stat, empty, pill, barChart, breakEvenChart, state,

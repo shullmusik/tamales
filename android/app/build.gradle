@@ -64,4 +64,6 @@ android {
 dependencies {
     // WebViewAssetLoader: sirve assets/www bajo https://appassets.androidplatform.net (origen seguro).
     implementation 'androidx.webkit:webkit:1.14.0'
+    // FileProvider: entrega a la cámara la ruta donde guardar la foto del ticket.
+    implementation 'androidx.core:core:1.13.1'
 }

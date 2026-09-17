@@ -1,7 +1,9 @@
-# Tamalitos — costos, recetas, precios dinámicos y ganancias para negocios de comida por receta
+# Cafetería Lauri — costos, recetas, inventario con tickets, precios y ganancias
 
-PWA instalable, **sin frameworks ni build**, pensada para operarse con una mano en el puesto y sin señal.
-Núcleo genérico para cualquier comercio local que produzca por receta; primera verticalización: **tamales**.
+PWA instalable, **sin frameworks ni build**, pensada para operarse con una mano en el puesto y sin señal,
+y que también se ve bien en una computadora (barra lateral y rejillas a partir de 1024 px).
+Núcleo genérico para cualquier comercio local que produzca por receta; verticalización activa:
+**cafetería** (tamales, antojitos, bebidas, pan). Sin anuncios, sin planes, sin límites.
 
 Publicada en `https://shullmusik.github.io/tamales/` (GitHub Pages, raíz del repositorio).
 
@@ -11,10 +13,10 @@ Publicada en `https://shullmusik.github.io/tamales/` (GitHub Pages, raíz del re
 
 | Pestaña | Para qué sirve |
 |---|---|
-| **Ventas** | Captura diaria con botones grandes: producidos, vendidos y el botón rojo de *"me lo pidieron y no había"* (demanda perdida). Congela precio y costo del día. |
-| **Productos** | Cada producto tiene receta (insumo + cantidad **por tanda o por pieza**, en g / kg / ml / l / pz / **cucharadita / cucharada / taza**), rendimiento de tanda, creación de insumos sin salir de la receta, costos de operación (gas, mano de obra, empaque) y margen objetivo. Muestra costo unitario, margen real y **precio sugerido**. Arriba aparecen los **precios por revisar** cuando un insumo cambió. |
-| **Insumos** | Materia prima con unidad de compra (bulto de 20 kg, litro, ciento de hojas…), precio de compra e historial. Calcula el costo por gramo / mililitro / pieza. **Inventario**: botón «Compré» por insumo, existencias que bajan solas con la producción, «alcanza para ~N piezas» y aviso «por agotarse». El costeo usa el **promedio ponderado del inventario**, así una subida de precio entra al costo poco a poco (amortiguada) en vez de de golpe. Equivalencias de cocina propias por insumo (1 cucharada = 18 g). |
-| **Ganancias** | Ingresos, costo de ventas, ganancia bruta, gastos fijos prorrateados, **ganancia neta**, oportunidad perdida, gráficos, recomendaciones de producción, **gastos fijos** y **punto de equilibrio** (piezas al día/mes). Exporta a WhatsApp y PDF. |
+| **Ventas** | Captura del día de venta, agrupada por categoría del menú, con botones grandes: preparados, vendidos y el botón rojo de *"me lo pidieron y no había"* (demanda perdida). Congela precio y costo del día. Las flechas saltan al **día de venta** anterior/siguiente (p. ej. de domingo a domingo). |
+| **Menú** | Productos por **categoría** (tamales, antojitos, bebidas, pan y postres…). Cada producto tiene receta (insumo + cantidad **por tanda o por pieza**, en g / kg / ml / l / pz / **cucharadita / cucharada / taza**), rendimiento de tanda, creación de insumos sin salir de la receta, costos de operación (gas, mano de obra, empaque) y margen objetivo. Muestra costo unitario, margen real y **precio sugerido**. Arriba aparecen los **precios por revisar** cuando un insumo cambió. |
+| **Insumos** | Tres secciones. 🧺 **Insumos**: materia prima con unidad de compra (bulto de 20 kg, litro, ciento de hojas…), precio de compra e historial. Calcula el costo por gramo / mililitro / pieza. **Inventario**: botón «Compré» por insumo, existencias que bajan solas con la producción, «alcanza para ~N piezas» y aviso «por agotarse». El costeo usa el **promedio ponderado del inventario**, así una subida de precio entra al costo poco a poco (amortiguada) en vez de de golpe. Equivalencias de cocina propias por insumo (1 cucharada = 18 g). 🍲 **Preparaciones**: salsas, frijoles, rellenos… con receta propia y rendimiento; en las recetas entran como un solo ingrediente («200 g de salsa verde») y su costo baja hasta la materia prima. 🧾 **Compras**: cuánto se ha invertido (mes, 30 días, total), en qué se va el dinero, y **tickets con foto**: la app **lee el ticket** (OCR en el teléfono con Tesseract.js, en línea la primera vez) y propone los artículos; se corrigen y al guardar entran al inventario y al costo promedio. |
+| **Ganancias** | Ingresos, costo de ventas, ganancia bruta, gastos fijos del periodo (repartidos entre los **días de venta**: si solo se vende los domingos, cada domingo carga 1/4.35 del mes), **ganancia neta**, oportunidad perdida, gráficos, recomendaciones de producción, **gastos fijos** y **punto de equilibrio** por día de venta ("160 productos cada domingo"). Exporta a WhatsApp y a **CSV para Excel / Google Sheets** (además: ventas de todos los días, insumos e inventario, compras y tickets desde Ajustes). |
 
 ---
 
@@ -29,11 +31,14 @@ tamales/
 │  │  ├─ money.js             Dinero en centavos enteros; formato MXN; redondeo a paso
 │  │  ├─ units.js             Unidades de compra ↔ unidad base (g · ml · pz)
 │  │  ├─ store.js             Esquema v2 en localStorage, migración desde v1, CRUD
-│  │  └─ costing.js           Costeo por receta, motor de precios, punto de equilibrio, agregados
+│  │  ├─ costing.js           Costeo por receta (con preparaciones), motor de precios, días de venta, punto de equilibrio
+│  │  ├─ files.js             Fotos de tickets en IndexedDB (compresión JPEG)
+│  │  └─ ocr.js               Lector de tickets: Tesseract.js bajo demanda + parseo de líneas e importes
 │  ├─ verticals/
-│  │  └─ tamales.js           Vocabulario, emojis, defaults y datos de ejemplo del giro
+│  │  └─ cafeteria.js         Vocabulario, categorías del menú, emojis, defaults y datos de ejemplo
 │  ├─ ui/                     ── VISTAS (solo pintan y capturan) ──
-│  │  ├─ common.js            DOM helpers, fechas, toast, hojas, gráficos en <canvas>
+│  │  ├─ common.js            DOM helpers, fechas, toast, hojas, CSV, gráficos en <canvas>
+│  │  ├─ recipe.js            Editor de ingredientes reutilizable (productos y preparaciones)
 │  │  ├─ ventas.js · productos.js · insumos.js · ganancias.js
 │  └─ app.js                  Navegación, ajustes, respaldo, PWA, arranque
 ├─ manifest.webmanifest · sw.js · icons/
@@ -55,18 +60,21 @@ tamales/
 ```jsonc
 {
   "v": 2,
-  "vertical": "tamales",
+  "vertical": "cafeteria",
   "settings": {
     "biz": "Tamales Doña Mary", "phone": "5215512345678",
     "targetMargin": 45,        // % del PRECIO que debe ser ganancia (global)
     "priceStep": 50,           // redondeo del precio sugerido, en centavos ($0.50)
     "workDays": 26,            // días de venta al mes (punto de equilibrio)
     "allocateFixed": false,    // ¿prorratear gastos fijos en el costo unitario?
-    "expectedPerDay": 0        // piezas/día para prorratear (0 = promedio real)
+    "expectedPerDay": 0,       // piezas/día para prorratear (0 = promedio real)
+    "costMode": "avg",         // "avg" promedio del inventario (amortigua) | "last" última compra
+    "sellDays": [0]            // días de la semana en que se vende (0 = domingo)
   },
 
   "insumos": [{
     "id": "t…", "name": "Hoja de tamal", "emoji": "🍃",
+    "kind": "raw",                                       // "raw" materia prima | "prep" preparación (con "recipe")
     "buyUnit": "pz", "buyQty": 100, "buyPrice": 6000,   // ciento de hojas por $60.00
     "base": "pz",                                        // derivado de buyUnit
     "history": [{ "at": 1757…, "buyPrice": 6000, "buyQty": 100, "buyUnit": "pz" }],
@@ -74,7 +82,7 @@ tamales/
   }],
 
   "products": [{
-    "id": "t…", "name": "Verde con pollo", "emoji": "🌶️", "active": true,
+    "id": "t…", "name": "Verde con pollo", "emoji": "🌶️", "active": true, "category": "tamales",
     "price": 1800,                                       // centavos
     "recipe": { "yield": 40, "items": [ { "insumoId": "t…", "qty": 2500 } ] },   // qty en unidad base, POR TANDA
     "extras": { "gasPerBatch": 2400, "laborPerBatch": 6000, "packPerPiece": 30 },
@@ -87,6 +95,8 @@ tamales/
   "reviews": [{ "id": "t…", "productId": "t…", "oldCost": 914, "newCost": 947, "causes": ["<insumoId>"], "at": 1757… }],
 
   "fixedCosts": [{ "id": "t…", "name": "Renta", "emoji": "🏠", "amount": 250000 }],   // centavos / mes
+  "tickets": [{ "id": "t…", "at": 1758…, "store": "Mercado", "total": 22200, "note": "", "photoId": "f…",   // foto en IndexedDB
+                "lines": [{ "insumoId": "t…", "qtyBase": 1000, "total": 6000, "buyQty": 1, "buyUnit": "kg" }] }],
 
   "days": { "2026-09-08": { "<productId>": { "made": 30, "sold": 24, "lost": 5, "price": 1800, "cost": 914 } } }
 }
@@ -144,6 +154,11 @@ create table daily_entries (
 | Costo promedio tras una compra | `(stock × avgCost + totalPagado) / (stock + cantidadComprada)` |
 | Consumo de inventario al producir | por ingrediente: `qty × piezasProducidas / yield` (se descuenta al capturar «Producidos») |
 | Medidas de cocina | `qty × (insumo.kitchen[unidad] ?? {cdta: 5, cda: 15, taza: 240})` en unidad base |
+| Costo de una preparación | `Σ costoBase(ingrediente) × qty / rendimiento` (recursivo, máx. 4 niveles) |
+| Días de venta al mes | `sellDays.length × 4.35` (semanas por mes); solo domingos → 4.35 |
+| Gastos fijos por día de venta | `fijosMensuales / díasDeVentaAlMes` |
+| Gastos fijos del periodo | `fijosPorDíaDeVenta × díasDeVentaDentroDelPeriodo` |
+| Punto de equilibrio por día de venta | `⌈unidadesMes / díasDeVentaAlMes⌉` |
 | Costo de insumos por tanda | `Σ costoBase(insumo_i) × qty_i` |
 | **Costo de insumos por pieza** | `round(costoTanda / yield)` |
 | Operación por pieza | `round((gasPerBatch + laborPerBatch) / yield + packPerPiece)` |
@@ -195,31 +210,21 @@ npx --yes serve . -l 8899
 
 Al publicar cambios corre `node tools/release.mjs 2.1.1` (sube la versión en `index.html`, `sw.js` y `js/app.js` a la vez): las URLs versionadas evitan que un teléfono mezcle archivos viejos y nuevos, y la app instalada se recarga sola al detectar la versión nueva.
 
-## 7. Estado de verificación
+## 7. Estado de verificación (v3.0.0)
+
+Probado con servidor local (375 px y 1280 px): semilla de la cafetería (37 insumos, 3 preparaciones, 10 productos en 3 categorías), costo de una preparación y de los productos que la usan, productos afectados por un ingrediente a través de la preparación, ticket con foto → OCR (4 artículos reconocidos con insumo, cantidad y unidad) → inventario y costo promedio → tarjeta con miniatura y gráfico de gasto, días de venta = domingos (4.35/mes, $2,276.80 de fijos por domingo, punto de equilibrio por domingo), CSV del reporte, de insumos y de compras, diseño de escritorio con barra lateral. Sin errores de consola.
+
+### Verificación anterior
 
 Probado con servidor local en viewport de 375 px: carga de semilla, costeo por receta (Verde con pollo: insumos $6.74 + operación $2.40 = $9.14, 49 % de margen a $18), cambio de precio de un insumo → 4 revisiones con mensaje y sugerencia, aceptar sugerencia, edición de receta en vivo con cambio de unidad (800 g → 1.2 kg), migración de datos v1, reportes por periodo con gastos fijos y ganancia neta, punto de equilibrio con gráfico y avance del mes, texto de WhatsApp y hoja de PDF. Sin errores de consola.
 El registro del service worker no se puede ejecutar en el panel de vista previa usado para las pruebas; verificarlo en Chrome/Android sobre HTTPS.
 
 ---
 
-## 8. Monetización (Freemium / Pro)
-
-Plan gratis: 3 productos, 12 insumos, reportes de hoy y 7 días; Pro (pago único) quita los
-límites y habilita reportes del mes / historial completo y PDF / CSV. Nunca se ocultan datos ya
-capturados. Tres formas de activar Pro, sin servidor propio:
-
-1. **Google Play Billing** (app instalada desde Play): `js/core/billing.js` usa la Digital Goods
-   API + Payment Request; la TWA la expone con `androidbrowserhelper:billing`.
-2. **Código de licencia** firmado con ECDSA P-256 (`npm run license:code -- "Nombre"`), verificado
-   en el teléfono sin internet. Ideal para transferencia / MercadoPago / efectivo.
-3. **Enlace de pago** opcional (`PAY_LINK`).
-
-Detalles y pasos de Play Console en [ANDROID_DEPLOY.md](ANDROID_DEPLOY.md).
-
-## 9. App para Android (independiente)
+## 8. App para Android (independiente)
 
 La carpeta `android/` empaqueta **la misma web dentro del APK** y la muestra en un WebView propio:
 la app no depende del sitio en línea ni de tener conexión. Lo que un WebView no hace solo lo
-resuelve el puente nativo `TamalitosNative` (guardar respaldos, PDF, WhatsApp, Google Play
-Billing). Compila en GitHub Actions y publica APK + AAB en Releases. Guía completa:
+resuelve el puente nativo `TamalitosNative` (guardar archivos CSV/JSON, WhatsApp, cámara para la
+foto del ticket vía FileProvider). Compila en GitHub Actions y publica APK + AAB en Releases. Guía completa:
 [ANDROID_DEPLOY.md](ANDROID_DEPLOY.md).

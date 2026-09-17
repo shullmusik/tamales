@@ -28,6 +28,7 @@ TM.views.ganancias = (() => {
     return k.length ? `Historial completo · ${k.length} ${k.length === 1 ? 'día registrado' : 'días registrados'}` : 'Sin registros todavía';
   }
   const current = () => C.aggregate(rangeDays(U.state.range, U.state.day));
+  const dayWord = () => C.sellDayLabel(false);
 
   /* ------------------------------------------------------------ render */
   function render() {
@@ -44,7 +45,7 @@ TM.views.ganancias = (() => {
       <div class="money"><div class="money__top">💵 Ingresos</div><p class="money__v">${M.fmt(t.revenue)}</p><p class="money__sub">${t.sold} piezas vendidas</p></div>
       <div class="money"><div class="money__top">📦 Costo de ventas</div><p class="money__v">${M.fmt(t.cost)}</p><p class="money__sub">${t.made} piezas producidas</p></div>
       <div class="money"><div class="money__top">🧮 Ganancia bruta</div><p class="money__v ${t.gross < 0 ? 'is-neg' : ''}">${M.fmt(t.gross)}</p><p class="money__sub">Antes de gastos fijos</p></div>
-      <div class="money"><div class="money__top">🏠 Gastos fijos</div><p class="money__v">${M.fmt(t.fixed)}</p><p class="money__sub">${t.days} ${t.days === 1 ? 'día' : 'días'} de ${M.fmt0(C.fixedMonthly())}/mes</p></div>
+      <div class="money"><div class="money__top">🏠 Gastos fijos</div><p class="money__v">${M.fmt(t.fixed)}</p><p class="money__sub">${C.sellDays().length ? `${t.sellDaysInPeriod} ${t.sellDaysInPeriod === 1 ? dayWord() : C.sellDayLabel(true)} · ${M.fmt0(C.fixedPerSellDay())} cada uno` : `${t.days} ${t.days === 1 ? 'día' : 'días'} de ${M.fmt0(C.fixedMonthly())}/mes`}</p></div>
       <div class="money money--lost money--wide">
         <div class="money__top">⚠️ Oportunidad perdida</div>
         <p class="money__v">${M.fmt(t.lostValue)}</p>
@@ -89,7 +90,7 @@ TM.views.ganancias = (() => {
 
     const topLost = a.rows.slice().sort((x, y) => y.lost - x.lost)[0];
     const topLeft = a.rows.slice().sort((x, y) => y.left - x.left)[0];
-    const manana = U.state.range === 'day' ? 'mañana' : 'los próximos días';
+    const manana = U.state.range === 'day' ? (C.sellDays().length ? `el próximo ${dayWord()}` : 'mañana') : (C.sellDays().length ? `los próximos ${C.sellDayLabel(true)}` : 'los próximos días');
     if (topLost && topLost.lost > 0 && topLeft && topLeft.left > 0 && topLost.id !== topLeft.id) {
       out.push({ kind: 'tip', icon: '💡', text: `Atención: <b>${esc(topLost.name)}</b> tuvo <b>${topLost.lost}</b> pedidos no surtidos y a <b>${esc(topLeft.name)}</b> le sobraron <b>${topLeft.left}</b> piezas. Considera preparar ${manana} unos ${topLost.lost} más de ${esc(topLost.name)} y unos ${topLeft.left} menos de ${esc(topLeft.name)}.` });
     } else if (topLost && topLost.lost > 0) {
@@ -153,7 +154,7 @@ TM.views.ganancias = (() => {
     const box = $('#breakEven');
     const L = TM.vertical.labels;
     if (be.fixed <= 0) {
-      box.innerHTML = '<p class="hint">Captura tus gastos fijos arriba para saber cuántas piezas necesitas vender al día para no perder.</p>';
+      box.innerHTML = `<p class="hint">Captura tus gastos fijos arriba para saber cuántas piezas necesitas vender cada ${esc(dayWord())} para no perder.</p>`;
       $('#chartBE').hidden = true; return;
     }
     if (be.unitsMonth == null) {
@@ -163,10 +164,10 @@ TM.views.ganancias = (() => {
     const pct = Math.round(be.covered * 100);
     box.innerHTML = `
       <div class="be-grid">
-        <div class="be-big"><b>${U.num(be.unitsDay)}</b><small>${L.products} al día</small></div>
-        <div class="be-big"><b>${U.num(be.unitsMonth)}</b><small>al mes (${be.workDays} días)</small></div>
+        <div class="be-big"><b>${U.num(be.unitsDay)}</b><small>${L.products} cada ${esc(be.dayLabel)}</small></div>
+        <div class="be-big"><b>${U.num(be.unitsMonth)}</b><small>al mes (${U.num(be.workDays, 1)} ${esc(be.dayLabelPlural)})</small></div>
       </div>
-      <p class="be-text">Cada ${L.product} deja en promedio <b>${M.fmt(be.avgContribution)}</b> después de insumos y operación. Necesitas <b>${M.fmt0(be.revenueMonth)}</b> de ventas al mes solo para cubrir <b>${M.fmt0(be.fixed)}</b> de gastos fijos; a partir de ahí, todo es ganancia neta.</p>
+      <p class="be-text">Cada ${L.product} deja en promedio <b>${M.fmt(be.avgContribution)}</b> después de insumos y operación. Necesitas <b>${M.fmt0(be.revenueMonth)}</b> de ventas al mes (<b>${M.fmt0(Math.round(be.revenueMonth / be.workDays))}</b> cada ${esc(be.dayLabel)}) solo para cubrir <b>${M.fmt0(be.fixed)}</b> de gastos fijos; a partir de ahí, todo es ganancia neta.</p>
       <div class="be-progress">
         <div class="be-progress__head"><span>Este mes llevas <b>${U.num(be.monthSold)}</b> vendidos</span><b>${pct}%</b></div>
         <span class="bar bar--lg"><span class="bar__fill${be.covered >= 1 ? ' is-done' : ''}" style="width:${pct}%"></span></span>
@@ -202,18 +203,41 @@ TM.views.ganancias = (() => {
     document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); } catch (e) { /* no-op */ } document.body.removeChild(ta);
   }
 
-  function printReport() {
-    const a = current(), t = a.total, be = C.breakEven();
-    const biz = S.data.settings.biz || 'Mi negocio';
-    const card = (l, v) => `<div class="p-card"><small>${esc(l)}</small><b>${esc(v)}</b></div>`;
-    $('#printSheet').innerHTML = `
-      <h1>${esc(biz)}</h1><p class="p-sub">Reporte financiero · ${esc(rangeCaption(U.state.range, U.state.day))}</p>
-      <div class="p-grid">${card('Ingresos', M.fmt(t.revenue))}${card('Costo de ventas', M.fmt(t.cost))}${card('Ganancia bruta', M.fmt(t.gross))}${card('Gastos fijos del periodo', M.fmt(t.fixed))}${card('Ganancia neta', M.fmt(t.net))}${card('Oportunidad perdida', M.fmt(t.lostValue) + ' (' + t.lost + ')')}</div>
-      <table>${detailTable(a)}</table>
-      <div class="p-note">${insights(a).map((i) => `<p>${i.icon} ${i.text}</p>`).join('')}
-        ${be.unitsMonth ? `<p>⚖️ Punto de equilibrio: ${U.num(be.unitsDay)} piezas al día (${U.num(be.unitsMonth)} al mes) para cubrir ${M.fmt(be.fixed)} de gastos fijos.</p>` : ''}</div>
-      <p class="p-foot">Generado por ${esc(TM.vertical.appName)} el ${U.longDate(U.todayISO())}. Elige «Guardar como PDF» al imprimir.</p>`;
-    setTimeout(() => U.print(), 60);
+  /** CSV del periodo: resumen + detalle por producto + día por día. Abre en Excel / Google Sheets. */
+  function exportReportCsv() {
+    const a = current(), t = a.total;
+    const pesos = (c) => M.pesos(c).toFixed(2);
+    const rows = [];
+    rows.push(['Reporte', rangeCaption(U.state.range, U.state.day)]);
+    rows.push(['Negocio', S.data.settings.biz || TM.vertical.appName]);
+    rows.push([]);
+    rows.push(['Concepto', 'Monto']);
+    rows.push(['Ingresos', pesos(t.revenue)]);
+    rows.push(['Costo de ventas', pesos(t.cost)]);
+    rows.push(['Ganancia bruta', pesos(t.gross)]);
+    rows.push(['Gastos fijos del periodo', pesos(t.fixed)]);
+    rows.push(['Ganancia neta', pesos(t.net)]);
+    rows.push(['Oportunidad perdida', pesos(t.lostValue)]);
+    rows.push([]);
+    rows.push(['Producto', 'Categoría', 'Hechos', 'Vendidos', 'Sobrantes', 'No surtidos', 'Eficiencia %', 'Ingresos', 'Costo', 'Ganancia bruta', 'Valor perdido']);
+    a.rows.forEach((r) => {
+      const p = S.product(r.id);
+      rows.push([r.name, p ? TM.views.productos.catOf(p.category).label : '', r.made, r.sold, r.left, r.lost, Math.round(r.eff), pesos(r.revenue), pesos(r.cost), pesos(r.gross), pesos(r.lostValue)]);
+    });
+    rows.push(['TOTAL', '', t.made, t.sold, t.left, t.lost, Math.round(t.eff), pesos(t.revenue), pesos(t.cost), pesos(t.gross), pesos(t.lostValue)]);
+    rows.push([]);
+    rows.push(['Fecha', 'Producto', 'Hechos', 'Vendidos', 'No surtidos', 'Precio', 'Costo unitario', 'Ingresos', 'Ganancia bruta']);
+    a.days.forEach((iso) => {
+      const day = S.data.days[iso]; if (!day) return;
+      Object.keys(day).forEach((pid) => {
+        const e = day[pid], m = C.metrics(e), p = S.product(pid);
+        rows.push([iso, p ? p.name : 'Eliminado', m.made, m.sold, m.lost, pesos(e.price), pesos(e.cost), pesos(m.revenue), pesos(m.gross)]);
+      });
+    });
+    rows.push([]);
+    insights(a).forEach((i) => rows.push(['Nota', i.text.replace(/<[^>]+>/g, '')]));
+    U.saveCsv(`reporte-${U.state.range}-${U.state.day}.csv`, rows);
+    U.toast('Reporte listo para Excel');
   }
 
   function wire() {
@@ -222,7 +246,7 @@ TM.views.ganancias = (() => {
       U.state.range = b.dataset.range; U.buzz(8); render();
     });
     $('#btnWhatsapp').addEventListener('click', () => { U.buzz(); sendWhatsapp(); });
-    $('#btnPdf').addEventListener('click', () => { U.buzz(); printReport(); });
+    $('#btnCsvReport').addEventListener('click', () => { U.buzz(); exportReportCsv(); });
     $('#fixedAdd').addEventListener('click', () => { U.buzz(); openFixed(null); });
     $('#fixedList').addEventListener('click', (ev) => { const b = ev.target.closest('[data-fixed]'); if (b) { U.buzz(); openFixed(b.dataset.fixed); } });
     $('#formFixed').addEventListener('submit', submitFixed);

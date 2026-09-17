@@ -18,13 +18,17 @@ import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 
+import androidx.core.content.FileProvider;
+
+import java.io.File;
+
 import androidx.webkit.WebViewAssetLoader;
 
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 
 /**
- * App independiente: la web de Tamalitos viaja DENTRO del APK (assets/www) y se muestra
+ * App independiente: la web de Cafetería Lauri viaja DENTRO del APK (assets/www) y se muestra
  * en un WebView. No necesita el sitio en línea ni conexión para funcionar.
  *
  * El WebView sirve los archivos desde https://appassets.androidplatform.net/assets/www/
@@ -41,6 +45,7 @@ public class MainActivity extends Activity {
     WebViewAssetLoader loader;
     String pendingContent;
     ValueCallback<Uri[]> pendingChooser;
+    Uri pendingCameraUri;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -77,16 +82,32 @@ public class MainActivity extends Activity {
         });
 
         web.setWebChromeClient(new WebChromeClient() {
-            /** <input type="file"> → restaurar respaldo. */
+            /** <input type="file">: respaldo (.json) o foto del ticket (image/*, con cámara si se pidió). */
             @Override
             public boolean onShowFileChooser(WebView v, ValueCallback<Uri[]> cb, FileChooserParams params) {
                 if (pendingChooser != null) pendingChooser.onReceiveValue(null);
                 pendingChooser = cb;
+                pendingCameraUri = null;
+                String[] accept = params.getAcceptTypes();
+                boolean image = accept != null && accept.length > 0 && accept[0] != null && accept[0].startsWith("image");
                 try {
-                    Intent i = new Intent(Intent.ACTION_GET_CONTENT);
-                    i.addCategory(Intent.CATEGORY_OPENABLE);
-                    i.setType("*/*");
-                    startActivityForResult(Intent.createChooser(i, "Elegir respaldo"), REQ_PICK);
+                    Intent pick = new Intent(Intent.ACTION_GET_CONTENT);
+                    pick.addCategory(Intent.CATEGORY_OPENABLE);
+                    pick.setType(image ? "image/*" : "*/*");
+                    if (image && params.isCaptureEnabled()) {
+                        // La cámara guarda en el caché de la app a través del FileProvider (sin permiso CAMERA).
+                        File dir = new File(getCacheDir(), "fotos"); dir.mkdirs();
+                        File f = new File(dir, "ticket-" + System.currentTimeMillis() + ".jpg");
+                        pendingCameraUri = FileProvider.getUriForFile(MainActivity.this, getString(R.string.file_provider), f);
+                        Intent cam = new Intent(android.provider.MediaStore.ACTION_IMAGE_CAPTURE);
+                        cam.putExtra(android.provider.MediaStore.EXTRA_OUTPUT, pendingCameraUri);
+                        cam.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION | Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                        Intent chooser = Intent.createChooser(pick, "Foto del ticket");
+                        chooser.putExtra(Intent.EXTRA_INITIAL_INTENTS, new Intent[] { cam });
+                        startActivityForResult(chooser, REQ_PICK);
+                    } else {
+                        startActivityForResult(Intent.createChooser(pick, image ? "Foto del ticket" : "Elegir respaldo"), REQ_PICK);
+                    }
                     return true;
                 } catch (ActivityNotFoundException e) {
                     pendingChooser = null;
@@ -142,8 +163,14 @@ public class MainActivity extends Activity {
             }
             pendingContent = null;
         } else if (req == REQ_PICK && pendingChooser != null) {
-            pendingChooser.onReceiveValue(WebChromeClient.FileChooserParams.parseResult(res, data));
+            Uri[] result = null;
+            if (res == RESULT_OK) {
+                if (data != null && data.getData() != null) result = new Uri[] { data.getData() };
+                else if (pendingCameraUri != null) result = new Uri[] { pendingCameraUri };   // vino de la cámara
+            }
+            pendingChooser.onReceiveValue(result);
             pendingChooser = null;
+            pendingCameraUri = null;
         }
     }
 
@@ -181,8 +208,8 @@ public class MainActivity extends Activity {
         public void print() {
             runOnUiThread(() -> {
                 PrintManager pm = (PrintManager) getSystemService(PRINT_SERVICE);
-                PrintDocumentAdapter adapter = web.createPrintDocumentAdapter("Tamalitos");
-                pm.print("Reporte Tamalitos", adapter, new PrintAttributes.Builder().build());
+                PrintDocumentAdapter adapter = web.createPrintDocumentAdapter("Cafetería Lauri");
+                pm.print("Reporte Cafetería Lauri", adapter, new PrintAttributes.Builder().build());
             });
         }
 

@@ -3,24 +3,25 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=5">
-<title>Tamalitos · Costos y ganancias</title>
-<meta name="description" content="Costeo por receta, precios dinámicos, ventas diarias, demanda perdida y punto de equilibrio para tu negocio de tamales. Funciona sin internet.">
+<title>Cafetería Lauri · Costos y ganancias</title>
+<meta name="description" content="Cafetería Lauri: recetas, insumos con tickets, inventario, precios, ventas y punto de equilibrio. Funciona sin internet.">
 <meta name="theme-color" content="#E8890C">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Tamalitos">
+<meta name="apple-mobile-web-app-title" content="Lauri">
 <meta name="format-detection" content="telephone=no">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
-<link rel="stylesheet" href="css/app.css?v=2.4.0">
+<link rel="stylesheet" href="css/app.css?v=3.0.0">
 </head>
 <body>
 
 <!-- ============ BARRA SUPERIOR ============ -->
 <header class="appbar" id="appbar">
   <div class="appbar__text">
+    <p class="appbar__brand" id="appBrand">Cafetería Lauri</p>
     <h1 class="appbar__title" id="appTitle">Ventas</h1>
     <p class="appbar__sub" id="appSub">Hoy</p>
   </div>
@@ -41,7 +42,10 @@
       </label>
       <button class="datebar__nav" id="dayNext" aria-label="Día siguiente">&#8250;</button>
     </div>
-    <button class="chip chip--today" id="btnHoy" hidden>Volver a hoy</button>
+    <div class="daybar-notes">
+      <button class="chip chip--today" id="btnHoy" hidden>Volver a hoy</button>
+      <span class="chip chip--muted" id="dayNote"></span>
+    </div>
     <div class="stat-strip" id="dayStrip"></div>
     <div id="dayList" class="cards"></div>
   </section>
@@ -55,8 +59,28 @@
 
   <!-- ============ INSUMOS ============ -->
   <section class="view" id="view-insumos" role="tabpanel" aria-labelledby="tab-insumos" hidden>
-    <div class="stat-strip" id="insumoStrip"></div>
-    <div id="insumoList" class="cards"></div>
+    <div class="segmented" id="insumoTabs" role="tablist" aria-label="Sección de insumos">
+      <button class="segmented__btn is-on" data-tab="raw">🧺 Insumos</button>
+      <button class="segmented__btn" data-tab="prep">🍲 Preparaciones</button>
+      <button class="segmented__btn" data-tab="buys">🧾 Compras</button>
+    </div>
+    <div id="insumoRaw">
+      <div class="stat-strip" id="insumoStrip"></div>
+      <div id="insumoList"></div>
+    </div>
+    <div id="insumoPreps" hidden>
+      <p class="hint">Una preparación (salsa, frijoles, relleno…) se cocina aparte y luego entra a las recetas como un solo ingrediente.</p>
+      <div id="prepList"></div>
+    </div>
+    <div id="insumoBuys" hidden>
+      <div class="stat-strip" id="buyStrip"></div>
+      <section class="panel">
+        <h2 class="panel__title">💸 En qué se va el dinero (30 días)</h2>
+        <canvas id="chartSpend" aria-label="Gasto por insumo en los últimos 30 días"></canvas>
+        <p class="panel__empty" id="spendEmpty" hidden>Registra tus compras o tickets y aquí verás en qué se va el dinero.</p>
+      </section>
+      <div id="ticketList"></div>
+    </div>
   </section>
 
   <!-- ============ GANANCIAS Y REPORTES ============ -->
@@ -109,9 +133,9 @@
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 0 0-8.6 15L2 22l5.2-1.4A10 10 0 1 0 12 2zm5.2 14.1c-.2.6-1.2 1.2-1.7 1.2-.5.1-1 .1-1.7-.1-.4-.1-.9-.3-1.5-.6-2.7-1.2-4.4-3.9-4.5-4.1-.1-.2-1-1.4-1-2.6s.6-1.8.9-2.1c.2-.2.5-.3.7-.3h.5c.2 0 .4 0 .6.5l.8 1.9c.1.2.1.4 0 .6l-.3.5-.3.3c-.1.1-.3.3-.1.6.1.3.6 1.1 1.4 1.8 1 .9 1.8 1.1 2 1.2.3.1.4.1.6-.1l.8-1c.2-.2.4-.2.6-.1l1.8.9c.2.1.4.2.5.3.1.2.1.6-.1 1.2z"/></svg>
         WhatsApp
       </button>
-      <button class="btn btn--dark" id="btnPdf">
+      <button class="btn btn--dark" id="btnCsvReport">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v10m0 0 4-4m-4 4-4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        PDF
+        Excel / CSV
       </button>
     </div>
   </section>
@@ -164,6 +188,10 @@
         <input class="field__input" id="pName" type="text" placeholder="Verde con pollo" maxlength="40" autocomplete="off" enterkeyhint="next">
       </label>
       <div class="emoji-row" id="pEmojiRow" role="group" aria-label="Ícono"></div>
+      <label class="field">
+        <span class="field__label">Categoría del menú</span>
+        <select class="field__input" id="pCategory"></select>
+      </label>
       <div class="field-pair">
         <label class="field">
           <span class="field__label">Precio de venta</span>
@@ -314,10 +342,16 @@
         <span class="field__help">total pagado</span>
       </label>
     </div>
-    <label class="field">
-      <span class="field__label">Fecha</span>
-      <input class="field__input" id="bDate" type="date" aria-label="Fecha de la compra">
-    </label>
+    <div class="field-pair">
+      <label class="field">
+        <span class="field__label">Fecha</span>
+        <input class="field__input" id="bDate" type="date" aria-label="Fecha de la compra">
+      </label>
+      <label class="field">
+        <span class="field__label">Dónde (opcional)</span>
+        <input class="field__input" id="bStore" type="text" maxlength="40" placeholder="Mercado, Costco…">
+      </label>
+    </div>
     <div id="bInitialWrap" hidden>
       <span class="field__label">¿Ya tenías algo guardado antes de esta compra? (opcional)</span>
       <div class="field-pair">
@@ -332,6 +366,82 @@
       <button type="button" class="btn btn--ghost" data-close>Cancelar</button>
       <button type="submit" class="btn btn--primary">Registrar compra</button>
     </div>
+  </form>
+</div>
+
+<!-- ============ HOJA: PREPARACIÓN (insumo intermedio) ============ -->
+<div class="sheet" id="sheetPrep" role="dialog" aria-modal="true" aria-labelledby="sheetPrepTitle" hidden>
+  <div class="sheet__scrim" data-close></div>
+  <form class="sheet__card sheet__card--tall" id="formPrep" novalidate>
+    <div class="sheet__grip"></div>
+    <h2 class="sheet__title" id="sheetPrepTitle">Nueva preparación</h2>
+    <label class="field">
+      <span class="field__label">Nombre</span>
+      <input class="field__input" id="xName" type="text" placeholder="Salsa verde" maxlength="50" autocomplete="off">
+    </label>
+    <div class="emoji-row" id="xEmojiRow" role="group" aria-label="Ícono"></div>
+    <span class="field__label">¿Cuánto rinde una tanda?</span>
+    <div class="field-trio">
+      <label class="field"><input class="field__input" id="xYield" type="number" inputmode="decimal" min="0" step="any" placeholder="1.5" aria-label="Rendimiento"><span class="field__help">rinde</span></label>
+      <label class="field"><select class="field__input" id="xYieldUnit" aria-label="Unidad del rendimiento"></select><span class="field__help">unidad</span></label>
+      <label class="field"><select class="field__input" id="xBase" aria-label="Se mide en"><option value="g">gramos</option><option value="ml">mililitros</option><option value="pz">piezas</option></select><span class="field__help">se mide en</span></label>
+    </div>
+    <span class="field__label">Ingredientes de la tanda</span>
+    <div id="xItems" class="ritems"></div>
+    <div class="field-pair">
+      <button type="button" class="btn btn--ghost" id="xAdd">+ Ingrediente</button>
+      <button type="button" class="btn btn--ghost" id="xNewInsumo">✨ Insumo nuevo</button>
+    </div>
+    <div class="margin-preview" id="xCost"></div>
+    <p class="hint">En las recetas de tus productos la vas a encontrar como un ingrediente más: «200 g de salsa verde».</p>
+    <div class="sheet__actions">
+      <button type="button" class="btn btn--ghost" data-close>Cancelar</button>
+      <button type="submit" class="btn btn--primary" id="xSubmit">Guardar</button>
+    </div>
+    <button type="button" class="btn btn--danger-text" id="xDelete" hidden>Eliminar esta preparación</button>
+  </form>
+</div>
+
+<!-- ============ HOJA: TICKET DE COMPRA (foto + lector) ============ -->
+<div class="sheet" id="sheetTicket" role="dialog" aria-modal="true" aria-labelledby="sheetTicketTitle" hidden>
+  <div class="sheet__scrim" data-close></div>
+  <form class="sheet__card sheet__card--tall" id="formTicket" novalidate>
+    <div class="sheet__grip"></div>
+    <h2 class="sheet__title" id="sheetTicketTitle">Nuevo ticket</h2>
+
+    <div class="tphoto" id="tPhoto" aria-label="Foto del ticket">📷</div>
+    <div class="field-pair" id="tPhotoBtns">
+      <label class="btn btn--primary btn--file">📷 Tomar foto<input type="file" id="tPhotoFile" accept="image/*" capture="environment" hidden></label>
+      <label class="btn btn--ghost btn--file">🖼️ De la galería<input type="file" id="tPhotoPick" accept="image/*" hidden></label>
+    </div>
+    <div id="tOcrWrap">
+      <button type="button" class="btn btn--dark btn--block" id="tOcr" hidden>🔍 Leer el ticket</button>
+      <p class="hint" id="tOcrStatus"></p>
+    </div>
+
+    <div class="field-pair">
+      <label class="field"><span class="field__label">Fecha</span><input class="field__input" id="tDate" type="date"></label>
+      <label class="field"><span class="field__label">Dónde compraste</span><input class="field__input" id="tStore" type="text" maxlength="40" placeholder="Mercado, Costco…"></label>
+    </div>
+
+    <div id="tLinesWrap">
+      <span class="field__label">Artículos</span>
+      <p class="hint" id="tLinesLocked" hidden>Los artículos ya entraron al inventario; para corregirlos borra el ticket y captúralo de nuevo.</p>
+      <div id="tLines" class="tlines"></div>
+      <p class="hint" id="tSum"></p>
+      <button type="button" class="btn btn--ghost btn--block" id="tAddLine">+ Artículo</button>
+    </div>
+
+    <div class="field-pair">
+      <label class="field"><span class="field__label">Total pagado</span><div class="field__money"><span>$</span><input class="field__input" id="tTotal" type="number" inputmode="decimal" step="0.5" min="0" placeholder="suma"></div><span class="field__help">Vacío = suma de artículos</span></label>
+      <label class="field"><span class="field__label">Nota</span><input class="field__input" id="tNote" type="text" maxlength="80" placeholder="opcional"></label>
+    </div>
+
+    <div class="sheet__actions">
+      <button type="button" class="btn btn--ghost" data-close>Cancelar</button>
+      <button type="submit" class="btn btn--primary" id="tSubmit">Guardar ticket</button>
+    </div>
+    <button type="button" class="btn btn--danger-text" id="tDelete" hidden>Borrar este ticket</button>
   </form>
 </div>
 
@@ -368,7 +478,7 @@
 
     <label class="field">
       <span class="field__label">Nombre del negocio</span>
-      <input class="field__input" id="bizName" type="text" maxlength="40" placeholder="Tamales Doña Mary">
+      <input class="field__input" id="bizName" type="text" maxlength="40" placeholder="Cafetería Lauri">
     </label>
     <label class="field">
       <span class="field__label">WhatsApp para enviar el reporte (opcional)</span>
@@ -402,11 +512,14 @@
       <span class="field__help">Con «promedio», si compras un bulto más caro el costo sube poco a poco conforme se acaba el barato. Aplica a los insumos con compras registradas.</span>
     </label>
 
+    <h3 class="section-title">Días de venta</h3>
+    <p class="hint">Marca los días que abres. Con ellos se reparten los gastos fijos y se calcula el punto de equilibrio por día de venta.</p>
+    <div class="daypick" id="sSellDays" role="group" aria-label="Días de venta">
+      <button type="button" data-day="0">D</button><button type="button" data-day="1">L</button><button type="button" data-day="2">M</button><button type="button" data-day="3">M</button><button type="button" data-day="4">J</button><button type="button" data-day="5">V</button><button type="button" data-day="6">S</button>
+    </div>
+    <p class="hint" id="sSellDaysNote"></p>
+
     <h3 class="section-title">Gastos fijos</h3>
-    <label class="field">
-      <span class="field__label">Días de venta al mes</span>
-      <input class="field__input" id="sWorkDays" type="number" inputmode="numeric" min="1" max="31">
-    </label>
     <label class="switch-row">
       <span><b>Cargar gastos fijos al costo unitario</b><small>Prorratea renta, luz y sueldo en cada pieza para que el precio sugerido ya los cubra.</small></span>
       <input type="checkbox" id="sAllocate" class="toggle">
@@ -422,32 +535,36 @@
       <button class="menu-item" id="btnInstall" hidden><span>📲</span> Instalar en la pantalla de inicio</button>
       <button class="menu-item" id="btnBackup"><span>💾</span> Descargar respaldo (.json)</button>
       <button class="menu-item" id="btnRestore"><span>📥</span> Restaurar respaldo</button>
-      <button class="menu-item" id="btnCsv"><span>📊</span> Exportar historial (.csv)</button>
+      <button class="menu-item" id="btnCsv"><span>📊</span> Exportar ventas de todos los días (.csv)</button>
+      <button class="menu-item" id="btnCsvInsumos"><span>🧺</span> Exportar insumos e inventario (.csv)</button>
+      <button class="menu-item" id="btnCsvTickets"><span>🧾</span> Exportar compras y tickets (.csv)</button>
       <button class="menu-item" id="btnSeed"><span>🌱</span> Cargar datos de ejemplo (insumos, recetas y gastos)</button>
       <button class="menu-item menu-item--danger" id="btnWipe"><span>🗑️</span> Borrar todos los datos</button>
     </div>
     <input type="file" id="fileRestore" accept="application/json,.json" hidden>
-    <p class="menu-foot">Los datos se guardan solo en este teléfono. Haz un respaldo de vez en cuando.</p>
+    <p class="menu-foot" id="menuFoot">Los datos se guardan solo en este teléfono. Haz un respaldo de vez en cuando (las fotos de tickets no van en el respaldo).</p>
     <div class="sheet__actions">
       <button type="button" class="btn btn--primary" data-close>Listo</button>
     </div>
   </div>
 </div>
 
-<div id="printSheet" aria-hidden="true"></div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-<script src="js/core/money.js?v=2.4.0"></script>
-<script src="js/core/units.js?v=2.4.0"></script>
-<script src="js/core/store.js?v=2.4.0"></script>
-<script src="js/core/costing.js?v=2.4.0"></script>
-<script src="js/verticals/tamales.js?v=2.4.0"></script>
-<script src="js/ui/common.js?v=2.4.0"></script>
-<script src="js/ui/ventas.js?v=2.4.0"></script>
-<script src="js/ui/productos.js?v=2.4.0"></script>
-<script src="js/ui/insumos.js?v=2.4.0"></script>
-<script src="js/ui/ganancias.js?v=2.4.0"></script>
-<script src="js/app.js?v=2.4.0"></script>
+<script src="js/core/money.js?v=3.0.0"></script>
+<script src="js/core/units.js?v=3.0.0"></script>
+<script src="js/core/store.js?v=3.0.0"></script>
+<script src="js/core/costing.js?v=3.0.0"></script>
+<script src="js/core/files.js?v=3.0.0"></script>
+<script src="js/core/ocr.js?v=3.0.0"></script>
+<script src="js/verticals/cafeteria.js?v=3.0.0"></script>
+<script src="js/ui/common.js?v=3.0.0"></script>
+<script src="js/ui/recipe.js?v=3.0.0"></script>
+<script src="js/ui/ventas.js?v=3.0.0"></script>
+<script src="js/ui/productos.js?v=3.0.0"></script>
+<script src="js/ui/insumos.js?v=3.0.0"></script>
+<script src="js/ui/ganancias.js?v=3.0.0"></script>
+<script src="js/app.js?v=3.0.0"></script>
 <script>
 /* Autocuración: si el navegador mezcló archivos de dos versiones (caché vieja),
    borra cachés y service workers viejos y recarga UNA vez. Los datos no se tocan. */
@@ -459,7 +576,7 @@
   if (again) {
     document.body.insertAdjacentHTML('afterbegin',
       '<div style="position:fixed;inset:0;z-index:999;display:grid;place-items:center;padding:24px;background:#FFFAF3;color:#241A10;font:16px system-ui;text-align:center">' +
-      '<div><p style="font-size:44px;margin:0 0 8px">🫔</p><b>No se pudo cargar la versión nueva.</b><br>Cierra la app por completo y vuelve a abrirla con internet.</div></div>');
+      '<div><p style="font-size:44px;margin:0 0 8px">☕</p><b>No se pudo cargar la versión nueva.</b><br>Cierra la app por completo y vuelve a abrirla con internet.</div></div>');
     return;
   }
   var jobs = [];

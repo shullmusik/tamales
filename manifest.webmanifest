@@ -1,7 +1,7 @@
 {
-  "name": "Tamalitos · Costos y ganancias",
-  "short_name": "Tamalitos",
-  "description": "Costeo por receta, precios dinámicos, ventas diarias, demanda perdida y punto de equilibrio para tu negocio de tamales. Funciona sin internet.",
+  "name": "Cafetería Lauri · Costos y ganancias",
+  "short_name": "Lauri",
+  "description": "Cafetería Lauri: recetas, insumos con tickets, inventario, precios, ventas de cada domingo y punto de equilibrio. Funciona sin internet.",
   "lang": "es-MX",
   "dir": "ltr",
   "start_url": "./index.html",

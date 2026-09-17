@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Tamalitos</string>
+    <string name="app_name">Cafetería Lauri</string>
+    <string name="file_provider">io.github.shullmusik.tamalitos.files</string>
     <string name="shortcut_ventas">Ventas de hoy</string>
     <string name="shortcut_ganancias">Ganancias</string>
 </resources>
