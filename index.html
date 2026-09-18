@@ -14,7 +14,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
-<link rel="stylesheet" href="css/app.css?v=3.0.0">
+<link rel="stylesheet" href="css/app.css?v=3.1.0">
 </head>
 <body>
 
@@ -46,6 +46,7 @@
       <button class="chip chip--today" id="btnHoy" hidden>Volver a hoy</button>
       <span class="chip chip--muted" id="dayNote"></span>
     </div>
+    <section class="panel" id="ordersPanel"></section>
     <div class="stat-strip" id="dayStrip"></div>
     <div id="dayList" class="cards"></div>
   </section>
@@ -66,6 +67,7 @@
     </div>
     <div id="insumoRaw">
       <div class="stat-strip" id="insumoStrip"></div>
+      <section class="panel inv" id="invGlobal" hidden></section>
       <div id="insumoList"></div>
     </div>
     <div id="insumoPreps" hidden>
@@ -152,6 +154,7 @@
   <button class="tabbar__btn is-on" id="tab-ventas" data-view="ventas" role="tab" aria-selected="true">
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h3l2.2 11.2a2 2 0 0 0 2 1.6h6.4a2 2 0 0 0 2-1.5L21 8H7"/><circle cx="11" cy="20" r="1.6"/><circle cx="18" cy="20" r="1.6"/></svg>
     <span>Ventas</span>
+    <span class="badge" hidden>0</span>
   </button>
   <button class="tabbar__btn" id="tab-productos" data-view="productos" role="tab" aria-selected="false">
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h10a2 2 0 0 1 2 2v16l-7-3.5L5 21V5a2 2 0 0 1 2-2z"/></svg>
@@ -236,7 +239,9 @@
 
     <!-- operación -->
     <div class="pane" data-pane-id="operacion" hidden>
-      <p class="hint">Costos que no son ingredientes pero sí se gastan al producir. Se reparten entre las piezas de la <span id="oBatchLabel">tanda</span>.</p>
+      <p class="hint">La operación se calcula sola como porcentaje del costo de insumos (se ajusta en Ajustes):</p>
+      <div class="costbox" id="oPctBox"></div>
+      <p class="hint" style="margin-top:12px">Extras opcionales de este producto (déjalos en cero si no aplican). Se reparten entre las piezas de la <span id="oBatchLabel">tanda</span>.</p>
       <label class="field">
         <span class="field__label" id="oGasLabel">Gas / energía por tanda</span>
         <div class="field__money"><span>$</span><input class="field__input" id="oGas" type="number" inputmode="decimal" step="0.5" min="0" placeholder="0.00"></div>
@@ -445,6 +450,61 @@
   </form>
 </div>
 
+<!-- ============ HOJA: PEDIDO ============ -->
+<div class="sheet" id="sheetOrder" role="dialog" aria-modal="true" aria-labelledby="sheetOrderTitle" hidden>
+  <div class="sheet__scrim" data-close></div>
+  <form class="sheet__card sheet__card--tall" id="formOrder" novalidate>
+    <div class="sheet__grip"></div>
+    <div class="panel__head"><h2 class="sheet__title" id="sheetOrderTitle" style="margin:0">Nuevo pedido</h2><span id="oStatus"></span></div>
+    <div class="emoji-row" id="oCustomers" role="group" aria-label="Clientes frecuentes" style="margin-top:8px"></div>
+    <div class="field-pair">
+      <label class="field"><span class="field__label">¿Quién lo pide?</span><input class="field__input" id="oCustomer" type="text" maxlength="40" autocomplete="off" placeholder="Nombre"></label>
+      <label class="field"><span class="field__label">WhatsApp (opcional)</span><input class="field__input" id="oPhone" type="tel" inputmode="tel" maxlength="20" placeholder="55 1234 5678"></label>
+    </div>
+    <div class="field-pair">
+      <label class="field"><span class="field__label">Día que lo recogen</span><input class="field__input" id="oDate" type="date"></label>
+      <label class="field"><span class="field__label">Hora</span><input class="field__input" id="oTime" type="time"></label>
+    </div>
+    <span class="field__label">¿Qué pidieron?</span>
+    <div id="oItems" class="oitems"></div>
+    <button type="button" class="btn btn--ghost btn--block" id="oAdd">+ Producto</button>
+    <p class="hint" id="oSum"></p>
+    <label class="field"><span class="field__label">Nota</span><input class="field__input" id="oNote" type="text" maxlength="120" placeholder="sin cebolla, ya pagó, para llevar…"></label>
+    <div class="sheet__actions">
+      <button type="button" class="btn btn--ghost" data-close>Cancelar</button>
+      <button type="submit" class="btn btn--primary">Guardar pedido</button>
+    </div>
+    <div class="field-pair" style="margin-top:10px">
+      <button type="button" class="btn btn--wa" id="oWhats" hidden>💬 Avisar que está listo</button>
+      <button type="button" class="btn btn--dark" id="oDeliver" hidden>✓ Entregado</button>
+    </div>
+    <button type="button" class="btn btn--danger-text" id="oDelete" hidden>Borrar este pedido</button>
+  </form>
+</div>
+
+<!-- ============ HOJA: MENÚ PARA CLIENTES (enlace) ============ -->
+<div class="sheet" id="sheetShare" role="dialog" aria-modal="true" aria-labelledby="sheetShareTitle" hidden>
+  <div class="sheet__scrim" data-close></div>
+  <div class="sheet__card">
+    <div class="sheet__grip"></div>
+    <h2 class="sheet__title" id="sheetShareTitle">Menú para tus clientes</h2>
+    <p class="hint">Comparte este enlace con tus clientes frecuentes: ven el menú con precios, arman su pedido y te lo mandan por WhatsApp. No necesitan instalar nada.</p>
+    <input class="field__input" id="shareUrl" type="url" readonly>
+    <p class="hint" id="shareLen"></p>
+    <div class="field-pair">
+      <button type="button" class="btn btn--ghost" id="shareCopy">📋 Copiar enlace</button>
+      <button type="button" class="btn btn--wa" id="shareWhats">Compartir por WhatsApp</button>
+    </div>
+    <h3 class="section-title" style="margin-top:18px">¿Te llegó un pedido por WhatsApp?</h3>
+    <p class="hint">Cópialo y pégalo aquí: se convierte en pedido pendiente.</p>
+    <textarea class="field__input" id="shareImport" rows="4" placeholder="Pedido para Cafetería Lauri&#10;Nombre: …&#10;Recoger: 2026-09-21 10:00&#10;- 10 x Tamal verde con pollo"></textarea>
+    <button type="button" class="btn btn--primary btn--block" id="shareImportBtn" style="margin-top:8px">Convertir en pedido</button>
+    <div class="sheet__actions sheet__actions--single" style="margin-top:14px">
+      <button type="button" class="btn btn--ghost" data-close>Cerrar</button>
+    </div>
+  </div>
+</div>
+
 <!-- ============ HOJA: GASTO FIJO ============ -->
 <div class="sheet" id="sheetFixed" role="dialog" aria-modal="true" aria-labelledby="sheetFixedTitle" hidden>
   <div class="sheet__scrim" data-close></div>
@@ -503,6 +563,14 @@
       </label>
     </div>
 
+    <h3 class="section-title">Costos de operación (% del costo de insumos)</h3>
+    <div class="field-trio">
+      <label class="field"><div class="field__money field__money--pct"><input class="field__input" id="sPctGas" type="number" inputmode="decimal" min="0" max="100" step="0.5"><span>%</span></div><span class="field__help">🔥 gas</span></label>
+      <label class="field"><div class="field__money field__money--pct"><input class="field__input" id="sPctLabor" type="number" inputmode="decimal" min="0" max="100" step="0.5"><span>%</span></div><span class="field__help">👩‍🍳 producción</span></label>
+      <label class="field"><div class="field__money field__money--pct"><input class="field__input" id="sPctPack" type="number" inputmode="decimal" min="0" max="100" step="0.5"><span>%</span></div><span class="field__help">🧽 empaque y lavado</span></label>
+    </div>
+    <p class="hint">Se suman al costo de insumos de cada pieza: con 6 + 4 + 2 %, un producto cuyos insumos cuestan $10 lleva $1.20 de operación.</p>
+
     <label class="field">
       <span class="field__label">Costear las recetas con</span>
       <select class="field__input" id="sCostMode">
@@ -551,20 +619,21 @@
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-<script src="js/core/money.js?v=3.0.0"></script>
-<script src="js/core/units.js?v=3.0.0"></script>
-<script src="js/core/store.js?v=3.0.0"></script>
-<script src="js/core/costing.js?v=3.0.0"></script>
-<script src="js/core/files.js?v=3.0.0"></script>
-<script src="js/core/ocr.js?v=3.0.0"></script>
-<script src="js/verticals/cafeteria.js?v=3.0.0"></script>
-<script src="js/ui/common.js?v=3.0.0"></script>
-<script src="js/ui/recipe.js?v=3.0.0"></script>
-<script src="js/ui/ventas.js?v=3.0.0"></script>
-<script src="js/ui/productos.js?v=3.0.0"></script>
-<script src="js/ui/insumos.js?v=3.0.0"></script>
-<script src="js/ui/ganancias.js?v=3.0.0"></script>
-<script src="js/app.js?v=3.0.0"></script>
+<script src="js/core/money.js?v=3.1.0"></script>
+<script src="js/core/units.js?v=3.1.0"></script>
+<script src="js/core/store.js?v=3.1.0"></script>
+<script src="js/core/costing.js?v=3.1.0"></script>
+<script src="js/core/files.js?v=3.1.0"></script>
+<script src="js/core/ocr.js?v=3.1.0"></script>
+<script src="js/verticals/cafeteria.js?v=3.1.0"></script>
+<script src="js/ui/common.js?v=3.1.0"></script>
+<script src="js/ui/recipe.js?v=3.1.0"></script>
+<script src="js/ui/pedidos.js?v=3.1.0"></script>
+<script src="js/ui/ventas.js?v=3.1.0"></script>
+<script src="js/ui/productos.js?v=3.1.0"></script>
+<script src="js/ui/insumos.js?v=3.1.0"></script>
+<script src="js/ui/ganancias.js?v=3.1.0"></script>
+<script src="js/app.js?v=3.1.0"></script>
 <script>
 /* Autocuración: si el navegador mezcló archivos de dos versiones (caché vieja),
    borra cachés y service workers viejos y recarga UNA vez. Los datos no se tocan. */

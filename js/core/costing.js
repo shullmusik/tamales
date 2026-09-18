@@ -115,12 +115,39 @@ TM.costing = (() => {
     return { total: Math.round(batch / p.recipe.yield), batchTotal: Math.round(batch), items, manual: false };
   }
 
-  /** Gas + mano de obra por tanda prorrateados, más empaque por pieza. */
-  function overheadCost(p) {
+  /**
+   * Operación por pieza = porcentajes del costo de insumos (gas 6 %, producción 4 %,
+   * empaque / lavado de trastes 2 % por defecto) + extras capturados a mano (opcionales).
+   */
+  function overheadBreakdown(p) {
+    const pct = S().settings.overheadPct || { gas: 6, labor: 4, pack: 2 };
+    const material = materialCost(p).total;
+    const gas = Math.round(material * (pct.gas || 0) / 100);
+    const labor = Math.round(material * (pct.labor || 0) / 100);
+    const pack = Math.round(material * (pct.pack || 0) / 100);
     const y = hasRecipe(p) ? p.recipe.yield : 1;
     const e = p.extras || {};
-    const perBatch = (e.gasPerBatch || 0) + (e.laborPerBatch || 0);
-    return Math.round(perBatch / y + (e.packPerPiece || 0));
+    const manual = Math.round(((e.gasPerBatch || 0) + (e.laborPerBatch || 0)) / y + (e.packPerPiece || 0));
+    return { pct, material, gas, labor, pack, manual, total: gas + labor + pack + manual };
+  }
+  const overheadCost = (p) => overheadBreakdown(p).total;
+
+  /* ----------------------------------------------------- existencias */
+  /** Barra de existencia: cuánto queda de lo que se compró. {pct 0..100, level: 'ok'|'low'|'crit'|'out'} */
+  function stockGauge(ins) {
+    const max = ins.stockMax > 0 ? ins.stockMax : ins.stock;
+    const pct = max > 0 ? Math.max(0, Math.min(100, Math.round((ins.stock / max) * 100))) : 0;
+    const level = ins.stock <= 0 ? 'out' : pct < 15 ? 'crit' : pct < 40 ? 'low' : 'ok';
+    return { pct, level, max };
+  }
+
+  /** Lo que queda de cada ingrediente (con inventario) que consume un producto; para Ventas en tiempo real. */
+  function remainingFor(p) {
+    return consumption(p, 1).map((c) => {
+      const g = stockGauge(c.ins);
+      const pieces = c.qtyBase > 0 ? Math.floor(c.ins.stock / c.qtyBase) : null;
+      return { ins: c.ins, perPiece: c.qtyBase, stock: c.ins.stock, pieces, gauge: g };
+    }).sort((a, b) => (a.pieces == null ? 1e9 : a.pieces) - (b.pieces == null ? 1e9 : b.pieces));
   }
 
   /** Gastos fijos mensuales prorrateados por pieza (solo si está activado). */
@@ -180,6 +207,7 @@ TM.costing = (() => {
     const changed = [];
     affected.forEach((p) => {
       const now = variableCost(p);
+      if (p.lastCost < 0) { TM.store.updateProduct(p.id, { lastCost: now }); return; }   // aceptado en silencio (migración)
       if (now !== p.lastCost) {
         const review = TM.store.reviewFor(p.id);
         TM.store.upsertReview(p.id, review ? review.oldCost : p.lastCost, now, causeId);
@@ -340,7 +368,7 @@ TM.costing = (() => {
   }
 
   return {
-    costPerBase, lastCostPerBase, prepCostPerBase, prepBatchCost, affectedProducts, stockInfo, consumption, applyProduction, lastChange, hasRecipe, materialCost, overheadCost, fixedAllocation, variableCost,
+    costPerBase, lastCostPerBase, prepCostPerBase, prepBatchCost, affectedProducts, stockInfo, stockGauge, remainingFor, consumption, applyProduction, lastChange, hasRecipe, materialCost, overheadBreakdown, overheadCost, fixedAllocation, variableCost,
     unitCost, marginOf, suggestedPrice, marginPct, summary,
     recompute, acceptReview, reviewMessage,
     fixedMonthly, sellDays, isSellDay, sellDaysPerMonth, fixedPerSellDay, sellDayLabel, avgMadePerDay, breakEven, metrics, aggregate

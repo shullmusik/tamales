@@ -14,7 +14,8 @@
        allocateFixed: false,                    // ¿prorratear gastos fijos en el costo unitario?
        expectedPerDay: 0,                       // piezas/día para prorratear (0 = usar historial)
        costMode: "avg",                         // "avg": costo promedio del inventario (amortigua) | "last": última compra
-       sellDays: [0]                            // días de la semana en que se vende (0 = domingo … 6 = sábado)
+       sellDays: [0],                           // días de la semana en que se vende (0 = domingo … 6 = sábado)
+       overheadPct: { gas: 6, labor: 4, pack: 2 } // operación como % del costo de insumos: gas · producción · empaque/lavado
      },
      insumos: [{
        id, name, emoji,
@@ -27,6 +28,7 @@
        history: [{ at, buyPrice, buyQty, buyUnit }],   // cada cambio de precio
        kitchen: { cdta: 6, cda: 18, taza: 130 }, // equivalencias propias de cocina (en unidad base)
        stock: 12500,                            // existencia en unidad base (g / ml / pz)
+       stockMax: 20000,                         // nivel "lleno": existencia justo después de la última compra (para la barra)
        avgCost: 2.61,                           // costo promedio ponderado (centavos por unidad base)
        purchases: [{ at, qtyBase, total, buyQty, buyUnit }],   // compras registradas
        createdAt, updatedAt
@@ -47,6 +49,9 @@
      fixedCosts: [{ id, name, emoji, amount }],  // centavos por mes
      tickets: [{ id, at, store, total, note, photoId,   // compras (ticket = una o varias líneas)
                  lines: [{ insumoId, qtyBase, total, buyQty, buyUnit }] }],   // photoId vive en IndexedDB
+     orders: [{ id, customer, phone, date: "2026-09-21", time: "09:30", note,   // pedidos por encargo
+                items: [{ productId, qty, price }], status: "pending" | "done" | "cancelled", createdAt, doneAt }],
+     customers: [{ id, name, phone, orders, lastAt }],   // clientes frecuentes (se llenan solos con los pedidos)
      days: { "2026-09-08": { productId: { made, sold, lost, price, cost } } }  // cost = costo variable del día
    }
    ========================================================================== */
@@ -61,12 +66,14 @@ TM.store = (() => {
   const blank = () => ({
     v: 2,
     vertical: 'cafeteria',
-    settings: { biz: '', phone: '', targetMargin: 45, priceStep: 50, workDays: 26, allocateFixed: false, expectedPerDay: 0, costMode: 'avg', sellDays: [0] },
+    settings: { biz: '', phone: '', targetMargin: 45, priceStep: 50, workDays: 26, allocateFixed: false, expectedPerDay: 0, costMode: 'avg', sellDays: [0], overheadPct: { gas: 6, labor: 4, pack: 2 }, overheadMigrated: true },
     insumos: [],
     products: [],
     reviews: [],
     fixedCosts: [],
     tickets: [],
+    orders: [],
+    customers: [],
     days: {}
   });
 
@@ -100,11 +107,13 @@ TM.store = (() => {
     d.v = 2;
     d.settings = Object.assign(blank().settings, d.settings || {});
     if (!Array.isArray(d.settings.sellDays)) d.settings.sellDays = [0];
+    d.settings.overheadPct = Object.assign({ gas: 6, labor: 4, pack: 2 }, d.settings.overheadPct || {});
     if (d.vertical === 'tamales' || !TM.verticals || !TM.verticals[d.vertical]) d.vertical = 'cafeteria';
     d.insumos = (d.insumos || []).map((i) => Object.assign({
       emoji: '🧺', buyUnit: 'pz', buyQty: 1, buyPrice: 0, history: [], createdAt: 0, updatedAt: 0,
       kitchen: {},          // equivalencias propias: { cdta: 6, cda: 18, taza: 130 } en unidad base
       stock: 0,             // existencia en unidad base
+      stockMax: 0,          // nivel lleno (tras la última compra)
       avgCost: 0,           // costo promedio ponderado del inventario (centavos por unidad base, flotante)
       purchases: [],        // [{ at, qtyBase, total, buyQty, buyUnit }]
       kind: 'raw',          // 'raw' | 'prep'
@@ -121,6 +130,13 @@ TM.store = (() => {
       recipe: Object.assign({ yield: 1, mode: 'batch', items: [] }, p.recipe || {}),   // mode: 'batch' | 'piece'
       extras: Object.assign({ gasPerBatch: 0, laborPerBatch: 0, packPerPiece: 0 }, p.extras || {})
     }));
+    // v3.1: la operación pasa a porcentajes del costo de insumos; los extras por tanda capturados
+    // antes se ponen en cero UNA vez (si no, se contarían dos veces). lastCost = -1 evita abrir
+    // "precios por revisar" por este cambio: el motor lo acepta en silencio al arrancar.
+    if (!d.settings.overheadMigrated) {
+      d.products.forEach((p) => { p.extras = { gasPerBatch: 0, laborPerBatch: 0, packPerPiece: 0 }; p.lastCost = -1; });
+      d.settings.overheadMigrated = true;
+    }
     d.products.forEach((p) => {
       if (p.recipe.mode === 'piece') p.recipe.yield = 1;
       p.recipe.items = (p.recipe.items || []).map((it) => ({ insumoId: it.insumoId, qty: it.qty | 0, unit: it.unit || null, shown: it.shown == null ? null : it.shown }));
@@ -128,6 +144,8 @@ TM.store = (() => {
     d.reviews = d.reviews || [];
     d.fixedCosts = d.fixedCosts || [];
     d.tickets = (d.tickets || []).map((t) => Object.assign({ store: '', total: 0, note: '', photoId: null, lines: [] }, t));
+    d.orders = (d.orders || []).map((o) => Object.assign({ customer: '', phone: '', date: '', time: '', note: '', items: [], status: 'pending', createdAt: 0, doneAt: null }, o));
+    d.customers = (d.customers || []).map((c) => Object.assign({ name: '', phone: '', orders: 0, lastAt: 0 }, c));
     d.days = d.days || {};
     return d;
   }
@@ -182,6 +200,7 @@ TM.store = (() => {
       const prevValue = i.stock * i.avgCost;
       i.avgCost = (prevValue + total) / (i.stock + qtyBase);
       i.stock += qtyBase;
+      i.stockMax = i.stock;                    // recién comprado = "lleno" para la barra de existencia
       i.purchases.push({ at: at || Date.now(), qtyBase, total, buyQty, buyUnit });
       const packBase = TM.units.toBase(i.buyQty, i.buyUnit) || 1;
       const packPrice = Math.round(total * packBase / qtyBase);
@@ -202,11 +221,13 @@ TM.store = (() => {
     /** Existencia inicial al empezar a llevar inventario, valuada al precio de la última compra. */
     initStock(id, qtyBase, costPerBase) {
       const i = byId(data.insumos, id); if (!i) return;
-      i.stock = Math.max(0, Math.round(qtyBase)); i.avgCost = costPerBase > 0 ? costPerBase : 0; save();
+      i.stock = Math.max(0, Math.round(qtyBase)); i.stockMax = i.stock; i.avgCost = costPerBase > 0 ? costPerBase : 0; save();
     },
     setStock(id, qtyBase) {
       const i = byId(data.insumos, id); if (!i) return;
-      i.stock = Math.max(0, Math.round(qtyBase)); save();
+      i.stock = Math.max(0, Math.round(qtyBase));
+      if (i.stock > (i.stockMax || 0)) i.stockMax = i.stock;   // corrigió hacia arriba: ese es el nuevo lleno
+      save();
     },
     tracksStock: (i) => !!(i && (i.purchases.length || i.stock > 0)),
     updateInsumo(id, patch) {
@@ -235,6 +256,36 @@ TM.store = (() => {
     updateTicket(id, patch) { const t = byId(data.tickets, id); if (t) Object.assign(t, patch); save(); return t; },
     /** Borra el ticket; las compras ya aplicadas al inventario no se revierten (se avisa en la UI). */
     removeTicket(id) { data.tickets = data.tickets.filter((t) => t.id !== id); save(); },
+
+    /* pedidos y clientes frecuentes */
+    order: (id) => byId(data.orders, id),
+    addOrder(o) {
+      o = Object.assign({ customer: '', phone: '', date: '', time: '', note: '', items: [], status: 'pending', createdAt: Date.now(), doneAt: null }, o);
+      o.id = uid();
+      data.orders.push(o);
+      api.touchCustomer(o.customer, o.phone);
+      save(); return o;
+    },
+    updateOrder(id, patch) {
+      const o = byId(data.orders, id); if (!o) return null;
+      Object.assign(o, patch);
+      if (patch.customer != null || patch.phone != null) api.touchCustomer(o.customer, o.phone);
+      save(); return o;
+    },
+    removeOrder(id) { data.orders = data.orders.filter((o) => o.id !== id); save(); },
+    /** Pedidos pendientes para una fecha (ISO). */
+    ordersOn: (iso) => data.orders.filter((o) => o.date === iso && o.status === 'pending'),
+    /** Registra / actualiza al cliente frecuente por nombre (sin mayúsculas ni acentos). */
+    touchCustomer(name, phone) {
+      const key = String(name || '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      if (!key) return null;
+      let c = data.customers.find((x) => x.name.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '') === key);
+      if (!c) { c = { id: uid(), name: String(name).trim(), phone: phone || '', orders: 0, lastAt: 0 }; data.customers.push(c); }
+      if (phone) c.phone = phone;
+      c.orders += 1; c.lastAt = Date.now();
+      return c;
+    },
+    removeCustomer(id) { data.customers = data.customers.filter((c) => c.id !== id); save(); },
 
     removeInsumo(id) {
       data.insumos = data.insumos.filter((i) => i.id !== id);

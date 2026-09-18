@@ -5,7 +5,7 @@ window.TM = window.TM || {};
 
 TM.views = TM.views || {};
 TM.views.ventas = (() => {
-  const U = TM.ui, S = TM.store, C = TM.costing, M = TM.money;
+  const U = TM.ui, S = TM.store, C = TM.costing, M = TM.money, UN = TM.units;
   const { $, $$, esc, int } = U;
   const L = () => TM.vertical.labels;
 
@@ -22,6 +22,7 @@ TM.views.ventas = (() => {
     $('#dayNext').disabled = st.day >= U.todayISO();
     $('#dayNote').textContent = C.sellDays().length ? `Vendes ${C.sellDays().length === 1 ? 'los ' + C.sellDayLabel(true) : C.sellDays().map((d) => U.DIAS[d].slice(0, 3)).join(', ')}` : '';
 
+    TM.views.pedidos.renderPanel();
     if (!prods.length) {
       $('#dayStrip').innerHTML = '';
       list.innerHTML = U.empty('📋', 'No hay productos activos',
@@ -62,7 +63,8 @@ TM.views.ventas = (() => {
           <button class="step step--big" data-inc="lost" data-id="${p.id}" aria-label="Sumar un pedido no surtido de ${esc(p.name)}">+1 pedido</button>
         </div>
       </div>
-      <div class="day__foot" data-foot="${p.id}">${foot(m)}</div>
+      <div class="day__foot" data-foot="${p.id}">${foot(m, p.id)}</div>
+      <div class="day__stock" data-stock="${p.id}">${stockLine(p)}</div>
     </article>`;
   }
 
@@ -74,13 +76,26 @@ TM.views.ventas = (() => {
       <button class="step" data-inc="${field}" data-id="${pid}" aria-label="Sumar ${esc(label)}">+</button>
     </div>`;
 
-  function foot(m) {
+  function foot(m, pid) {
     const eff = Math.round(m.eff);
-    return U.pill(`Sobran ${m.left}`, m.left > 0 ? '' : 'ok') +
+    const ordered = pid ? TM.views.pedidos.orderedQty(pid, U.state.day) : 0;
+    return (ordered ? U.pill(`📋 Pedidos ${ordered}`, m.made >= ordered ? 'ok' : 'alert') : '') +
+      U.pill(`Sobran ${m.left}`, m.left > 0 ? '' : 'ok') +
       U.pill(`Eficiencia ${eff}%`, eff >= 80 ? 'ok' : '') +
       (m.lost > 0 ? U.pill(`Perdiste ${M.fmt0(m.lostValue)}`, 'alert') : '') +
       U.pill(`Ganancia ${M.fmt0(m.gross)}`, m.gross >= 0 ? 'ok' : 'alert') +
       `<span class="bar"><span class="bar__fill" style="width:${Math.min(100, eff)}%"></span></span>`;
+  }
+
+  /** Lo que queda de cada ingrediente con inventario, ordenado por el que se acaba primero. */
+  function stockLine(p) {
+    const rem = C.remainingFor(p);
+    if (!rem.length) return '';
+    const chips = rem.slice(0, 6).map((r) => `<span class="stockchip stockchip--${r.gauge.level}" title="${esc(r.ins.name)}">${esc(r.ins.emoji)} ${r.stock > 0 ? esc(UN.fmt(r.stock, r.ins.base, true)) : 'se acabó'}${r.pieces != null && r.stock > 0 ? ` <small>~${U.num(r.pieces)}</small>` : ''}</span>`).join('');
+    const worst = rem[0];
+    const warn = worst && worst.gauge.level !== 'ok' && worst.pieces != null
+      ? `<small class="day__stockwarn">⚠️ ${esc(worst.ins.name)}: ${worst.stock > 0 ? 'alcanza para ~' + U.num(worst.pieces) + ' más' : 'ya no hay'}</small>` : '';
+    return `<small class="day__stocklabel">📦 Queda</small>${chips}${warn}`;
   }
 
   /** Actualiza una tarjeta sin volver a pintar la lista (no roba el foco). */
@@ -93,7 +108,8 @@ TM.views.ventas = (() => {
       const input = $(`[data-num="${f}"]`, card);
       if (input && document.activeElement !== input) input.value = m[f];
     });
-    $(`[data-foot="${pid}"]`, card).innerHTML = foot(m);
+    $(`[data-foot="${pid}"]`, card).innerHTML = foot(m, pid);
+    const sl = $(`[data-stock="${pid}"]`, card); if (sl) sl.innerHTML = stockLine(p);
     strip();
   }
 
@@ -112,7 +128,12 @@ TM.views.ventas = (() => {
     const next = int(e[field]) + delta;
     if (next < 0) return false;
     S.setEntry(U.state.day, pid, { [field]: next }, snapshot(p));
-    if (field === 'made') C.applyProduction(p, delta);        // descuenta insumos del inventario
+    if (field === 'made') {
+      const before = C.remainingFor(p).map((r) => r.gauge.level);
+      C.applyProduction(p, delta);                              // descuenta insumos del inventario
+      const after = C.remainingFor(p);
+      after.forEach((r, i) => { if (delta > 0 && before[i] === 'ok' && r.gauge.level !== 'ok') U.toast(`⚠️ Se está acabando ${r.ins.name}: quedan ${UN.fmt(r.stock, r.ins.base, true)}`); });
+    }
     patch(pid);
     return true;
   }

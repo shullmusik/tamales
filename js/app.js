@@ -10,7 +10,7 @@ TM.app = (() => {
   const { $, $$ } = U;
 
   const VIEWS = {
-    ventas:    { title: 'Ventas',    sub: 'Producción, ventas y faltantes',        fab: null },
+    ventas:    { title: 'Ventas',    sub: 'Producción, ventas, faltantes y pedidos', fab: 'Nuevo pedido' },
     productos: { title: 'Menú',      sub: 'Productos, recetas, costos y precios',  fab: 'Añadir producto' },
     insumos:   { title: 'Insumos',   sub: 'Materia prima, preparaciones y compras', fab: 'Añadir insumo' },
     ganancias: { title: 'Ganancias', sub: 'Reportes y punto de equilibrio',       fab: null }
@@ -62,6 +62,7 @@ TM.app = (() => {
     $('#sMargin').value = s.targetMargin;
     $('#sStep').value = s.priceStep;
     $('#sCostMode').value = s.costMode || 'avg';
+    $('#sPctGas').value = s.overheadPct.gas; $('#sPctLabor').value = s.overheadPct.labor; $('#sPctPack').value = s.overheadPct.pack;
     renderSellDays();
     $('#sAllocate').checked = !!s.allocateFixed;
     $('#sExpected').value = s.expectedPerDay || '';
@@ -81,16 +82,18 @@ TM.app = (() => {
 
   function saveSettings() {
     const s = S.data.settings;
-    const before = JSON.stringify([s.allocateFixed, s.expectedPerDay, s.sellDays, s.costMode]);
+    const before = JSON.stringify([s.allocateFixed, s.expectedPerDay, s.sellDays, s.costMode, s.overheadPct]);
     s.biz = $('#bizName').value.trim();
     s.phone = $('#bizPhone').value.trim();
     s.targetMargin = Math.min(95, Math.max(0, Number($('#sMargin').value) || 0));
     s.priceStep = Number($('#sStep').value) || 0;
     s.costMode = $('#sCostMode').value === 'last' ? 'last' : 'avg';
+    const pc = (id) => Math.min(100, Math.max(0, Number($(id).value) || 0));
+    s.overheadPct = { gas: pc('#sPctGas'), labor: pc('#sPctLabor'), pack: pc('#sPctPack') };
     s.allocateFixed = $('#sAllocate').checked;
     s.expectedPerDay = Math.max(0, Math.round(Number($('#sExpected').value) || 0));
     S.save();
-    if (before !== JSON.stringify([s.allocateFixed, s.expectedPerDay, s.sellDays, s.costMode])) C.recompute(null);
+    if (before !== JSON.stringify([s.allocateFixed, s.expectedPerDay, s.sellDays, s.costMode, s.overheadPct])) C.recompute(null);
     renderSellDays();
     render();
   }
@@ -177,7 +180,7 @@ TM.app = (() => {
     v.products.forEach((p) => {
       if (S.data.products.some((x) => x.name.toLowerCase() === p.name.toLowerCase())) return;
       const np = S.addProduct({
-        name: p.name, emoji: p.emoji, category: p.category || 'otros', price: p.price, extras: p.extras,
+        name: p.name, emoji: p.emoji, category: p.category || 'otros', price: p.price,
         recipe: { mode: p.mode || 'batch', yield: p.recipe.yield, items: p.recipe.items.map(([k, qty]) => ({ insumoId: byKey[k], qty })) }
       });
       S.updateProduct(np.id, { lastCost: C.variableCost(np) });
@@ -192,6 +195,7 @@ TM.app = (() => {
     $$('.tabbar__btn').forEach((b) => b.addEventListener('click', () => { U.buzz(8); setView(b.dataset.view); }));
     $('#fab').addEventListener('click', () => {
       U.buzz();
+      if (U.state.view === 'ventas') TM.views.pedidos.open(null);
       if (U.state.view === 'productos') TM.views.productos.open(null);
       if (U.state.view === 'insumos') {
         const t = U.state.insumoTab || 'raw';
@@ -210,7 +214,7 @@ TM.app = (() => {
       if (open) U.closeSheet('#' + open.id);
     });
 
-    ['#bizName', '#bizPhone', '#sMargin', '#sStep', '#sCostMode', '#sExpected'].forEach((s) => $(s).addEventListener('change', saveSettings));
+    ['#bizName', '#bizPhone', '#sMargin', '#sStep', '#sCostMode', '#sExpected', '#sPctGas', '#sPctLabor', '#sPctPack'].forEach((s) => $(s).addEventListener('change', saveSettings));
     $('#sSellDays').addEventListener('click', (ev) => {
       const b = ev.target.closest('[data-day]'); if (!b) return;
       const d = +b.dataset.day, sd = S.data.settings.sellDays.slice();
@@ -294,7 +298,7 @@ TM.app = (() => {
     try { sessionStorage.removeItem('tm-heal'); } catch (e) { /* la autocuración de index.html puede volver a actuar */ }
   }
 
-  return { setView, render, badge, fabLabel, seed, init, ready: false, version: '3.0.0' };
+  return { setView, render, badge, fabLabel, seed, init, ready: false, version: '3.1.0' };
 })();
 
 // TM.app ya existe aquí: init puede usarlo (badge, render) sin importar cuándo corra.

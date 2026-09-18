@@ -13,9 +13,9 @@ Publicada en `https://shullmusik.github.io/tamales/` (GitHub Pages, raíz del re
 
 | Pestaña | Para qué sirve |
 |---|---|
-| **Ventas** | Captura del día de venta, agrupada por categoría del menú, con botones grandes: preparados, vendidos y el botón rojo de *"me lo pidieron y no había"* (demanda perdida). Congela precio y costo del día. Las flechas saltan al **día de venta** anterior/siguiente (p. ej. de domingo a domingo). |
+| **Ventas** | **Pedidos pendientes** arriba (quién, cuántas piezas, qué día y a qué hora recogen; «Entregado» suma a las ventas; clientes frecuentes a un toque; enlace `pedido.html` para que los clientes armen su pedido y lo manden por WhatsApp, y el mensaje se pega para convertirlo en pedido). Captura del día de venta, agrupada por categoría del menú, con botones grandes: preparados, vendidos y el botón rojo de *"me lo pidieron y no había"* (demanda perdida). Congela precio y costo del día. Bajo cada producto, **en tiempo real**, lo que queda de cada ingrediente con inventario y aviso cuando algo se está acabando. Las flechas saltan al **día de venta** anterior/siguiente (p. ej. de domingo a domingo). |
 | **Menú** | Productos por **categoría** (tamales, antojitos, bebidas, pan y postres…). Cada producto tiene receta (insumo + cantidad **por tanda o por pieza**, en g / kg / ml / l / pz / **cucharadita / cucharada / taza**), rendimiento de tanda, creación de insumos sin salir de la receta, costos de operación (gas, mano de obra, empaque) y margen objetivo. Muestra costo unitario, margen real y **precio sugerido**. Arriba aparecen los **precios por revisar** cuando un insumo cambió. |
-| **Insumos** | Tres secciones. 🧺 **Insumos**: materia prima con unidad de compra (bulto de 20 kg, litro, ciento de hojas…), precio de compra e historial. Calcula el costo por gramo / mililitro / pieza. **Inventario**: botón «Compré» por insumo, existencias que bajan solas con la producción, «alcanza para ~N piezas» y aviso «por agotarse». El costeo usa el **promedio ponderado del inventario**, así una subida de precio entra al costo poco a poco (amortiguada) en vez de de golpe. Equivalencias de cocina propias por insumo (1 cucharada = 18 g). 🍲 **Preparaciones**: salsas, frijoles, rellenos… con receta propia y rendimiento; en las recetas entran como un solo ingrediente («200 g de salsa verde») y su costo baja hasta la materia prima. 🧾 **Compras**: cuánto se ha invertido (mes, 30 días, total), en qué se va el dinero, y **tickets con foto**: la app **lee el ticket** (OCR en el teléfono con Tesseract.js, en línea la primera vez) y propone los artículos; se corrigen y al guardar entran al inventario y al costo promedio. |
+| **Insumos** | Tres secciones. 🧺 **Insumos**: materia prima con unidad de compra (bulto de 20 kg, litro, ciento de hojas…), precio de compra e historial. Calcula el costo por gramo / mililitro / pieza. **Inventario**: botón «Compré» por insumo, existencias que bajan solas con la producción, «alcanza para ~N piezas» y aviso «por agotarse». El costeo usa el **promedio ponderado del inventario**, así una subida de precio entra al costo poco a poco (amortiguada) en vez de de golpe. Equivalencias de cocina propias por insumo (1 cucharada = 18 g). 🍲 **Preparaciones**: salsas, frijoles, rellenos… con receta propia y rendimiento; en las recetas entran como un solo ingrediente («200 g de salsa verde») y su costo baja hasta la materia prima. Panel de **inventario global** (valor total, cuántos bien / bajos / críticos) y en cada insumo una **barra de lo que queda de lo comprado**. 🧾 **Compras**: cuánto se ha invertido (mes, 30 días, total), en qué se va el dinero, y **tickets con foto**: la app **lee el ticket** (OCR en el teléfono con Tesseract.js, en línea la primera vez) y propone los artículos; se corrigen y al guardar entran al inventario y al costo promedio. |
 | **Ganancias** | Ingresos, costo de ventas, ganancia bruta, gastos fijos del periodo (repartidos entre los **días de venta**: si solo se vende los domingos, cada domingo carga 1/4.35 del mes), **ganancia neta**, oportunidad perdida, gráficos, recomendaciones de producción, **gastos fijos** y **punto de equilibrio** por día de venta ("160 productos cada domingo"). Exporta a WhatsApp y a **CSV para Excel / Google Sheets** (además: ventas de todos los días, insumos e inventario, compras y tickets desde Ajustes). |
 
 ---
@@ -39,7 +39,9 @@ tamales/
 │  ├─ ui/                     ── VISTAS (solo pintan y capturan) ──
 │  │  ├─ common.js            DOM helpers, fechas, toast, hojas, CSV, gráficos en <canvas>
 │  │  ├─ recipe.js            Editor de ingredientes reutilizable (productos y preparaciones)
+│  │  ├─ pedidos.js           Pedidos por encargo, clientes frecuentes, menú para clientes (enlace) e importación desde WhatsApp
 │  │  ├─ ventas.js · productos.js · insumos.js · ganancias.js
+├─ pedido.html                Página para clientes: menú embebido en el enlace → pedido por WhatsApp (sin servidor)
 │  └─ app.js                  Navegación, ajustes, respaldo, PWA, arranque
 ├─ manifest.webmanifest · sw.js · icons/
 ```
@@ -69,7 +71,8 @@ tamales/
     "allocateFixed": false,    // ¿prorratear gastos fijos en el costo unitario?
     "expectedPerDay": 0,       // piezas/día para prorratear (0 = promedio real)
     "costMode": "avg",         // "avg" promedio del inventario (amortigua) | "last" última compra
-    "sellDays": [0]            // días de la semana en que se vende (0 = domingo)
+    "sellDays": [0],           // días de la semana en que se vende (0 = domingo)
+    "overheadPct": { "gas": 6, "labor": 4, "pack": 2 }   // operación como % del costo de insumos
   },
 
   "insumos": [{
@@ -97,6 +100,9 @@ tamales/
   "fixedCosts": [{ "id": "t…", "name": "Renta", "emoji": "🏠", "amount": 250000 }],   // centavos / mes
   "tickets": [{ "id": "t…", "at": 1758…, "store": "Mercado", "total": 22200, "note": "", "photoId": "f…",   // foto en IndexedDB
                 "lines": [{ "insumoId": "t…", "qtyBase": 1000, "total": 6000, "buyQty": 1, "buyUnit": "kg" }] }],
+  "orders": [{ "id": "t…", "customer": "Doña Chelo", "phone": "5512345678", "date": "2026-09-21", "time": "09:30", "note": "",
+               "items": [{ "productId": "t…", "qty": 12, "price": 2000 }], "status": "pending", "createdAt": 1758…, "doneAt": null }],
+  "customers": [{ "id": "t…", "name": "Doña Chelo", "phone": "5512345678", "orders": 3, "lastAt": 1758… }],
 
   "days": { "2026-09-08": { "<productId>": { "made": 30, "sold": 24, "lost": 5, "price": 1800, "cost": 914 } } }
 }
@@ -161,7 +167,8 @@ create table daily_entries (
 | Punto de equilibrio por día de venta | `⌈unidadesMes / díasDeVentaAlMes⌉` |
 | Costo de insumos por tanda | `Σ costoBase(insumo_i) × qty_i` |
 | **Costo de insumos por pieza** | `round(costoTanda / yield)` |
-| Operación por pieza | `round((gasPerBatch + laborPerBatch) / yield + packPerPiece)` |
+| Operación por pieza | `insumos × (gas % + producción % + empaque/lavado %)` — por defecto 6 + 4 + 2 = 12 % del costo de insumos (Ajustes) + extras opcionales por tanda/pieza |
+| Barra de existencia | `stock / stockMax` donde `stockMax` = existencia justo después de la última compra; niveles ok ≥ 40 %, bajo < 40 %, crítico < 15 % |
 | Prorrateo de fijos (opcional) | `round(fijosMensuales / (piezasDía × workDays))` |
 | **Costo unitario** | insumos + operación (+ fijos prorrateados) |
 | Margen real | `(precio − costo) / precio × 100` |

@@ -11,12 +11,13 @@
    (o corre `node tools/release.mjs <versión>`, que hace las dos cosas).
    ========================================================================== */
 
-var VERSION = '3.0.0';
+var VERSION = '3.1.0';
 var CACHE = 'lauri-' + VERSION;
 
 var SHELL = [
   './',
   './index.html',
+  './pedido.html',
   './manifest.webmanifest',
   './icons/icon.svg',
   './icons/icon-192.png',
@@ -32,6 +33,7 @@ var SHELL = [
   './js/verticals/cafeteria.js?v=' + VERSION,
   './js/ui/common.js?v=' + VERSION,
   './js/ui/recipe.js?v=' + VERSION,
+  './js/ui/pedidos.js?v=' + VERSION,
   './js/ui/ventas.js?v=' + VERSION,
   './js/ui/productos.js?v=' + VERSION,
   './js/ui/insumos.js?v=' + VERSION,

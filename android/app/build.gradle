@@ -19,7 +19,7 @@ tasks.register('copyWeb', Copy) {
     description = 'Empaqueta la web dentro del APK (assets/www)'
     doFirst { delete webAssets }
     from(webRoot) {
-        include 'index.html', 'manifest.webmanifest', 'css/**', 'js/**', 'icons/**'
+        include 'index.html', 'pedido.html', 'manifest.webmanifest', 'css/**', 'js/**', 'icons/**'
     }
     into webAssets
 }

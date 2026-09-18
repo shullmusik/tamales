@@ -58,7 +58,7 @@ TM.views.productos = (() => {
           <span class="prod__body">
             <span class="prod__name">${esc(p.name)}</span>
             <span class="prod__meta"><b class="price">${M.fmt(p.price)}</b> · cuesta ${M.fmt(s.cost.total)}</span>
-            <span class="prod__meta prod__meta--sub">${s.cost.breakdown.manual ? 'Costo capturado a mano' : `Insumos ${M.fmt(s.cost.material)} + operación ${M.fmt(s.cost.overhead)}${s.cost.fixed ? ' + fijos ' + M.fmt(s.cost.fixed) : ''}`}</span>
+            <span class="prod__meta prod__meta--sub">${s.cost.breakdown.manual ? 'Costo capturado a mano' : `Insumos ${M.fmt(s.cost.material)} + operación ${M.fmt(s.cost.overhead)} (${(S.data.settings.overheadPct.gas + S.data.settings.overheadPct.labor + S.data.settings.overheadPct.pack)}%)${s.cost.fixed ? ' + fijos ' + M.fmt(s.cost.fixed) : ''}`}</span>
           </span>
           <span class="prod__margin">
             <b class="${s.unitProfit < 0 ? 'is-neg' : ''}">${M.fmt(s.unitProfit)}</b>
@@ -163,6 +163,7 @@ TM.views.productos = (() => {
 
   /* ---- operación ---- */
   function renderOperacion() {
+    renderOperacionBox();
     $('#oGas').value = M.input(draft.extras.gasPerBatch);
     $('#oLabor').value = M.input(draft.extras.laborPerBatch);
     $('#oPack').value = M.input(draft.extras.packPerPiece);
@@ -176,17 +177,30 @@ TM.views.productos = (() => {
       : 'Los gastos fijos (renta, luz, sueldo) no se cargan al costo unitario; se ven en el punto de equilibrio. Puedes activarlo en Ajustes.';
   }
 
+  function renderOperacionBox() {
+    const ob = C.overheadBreakdown(draft);
+    $('#oPctBox').innerHTML = `
+      <div class="costbox__rows">
+        <span>🔥 Gas · ${ob.pct.gas}% de los insumos</span><b>${M.fmt(ob.gas)}</b>
+        <span>👩‍🍳 Producción · ${ob.pct.labor}%</span><b>${M.fmt(ob.labor)}</b>
+        <span>🧽 Empaque y lavado de trastes · ${ob.pct.pack}%</span><b>${M.fmt(ob.pack)}</b>
+        <span class="costbox__total">Operación por ${L().piece}</span><b class="costbox__total">${M.fmt(ob.gas + ob.labor + ob.pack)}</b>
+      </div>`;
+  }
+
   /* ---- resumen de costo en vivo ---- */
   function renderCostBox() {
     const cost = C.unitCost(draft);
+    const ob = C.overheadBreakdown(draft);
     const margin = draft.targetMargin != null ? draft.targetMargin : S.data.settings.targetMargin;
     const suggested = C.suggestedPrice(cost.total, margin);
     const cur = C.marginPct(draft.price, cost.total);
     const y = draft.recipe.yield || 1;
+    if ($('#oPctBox') && pane === 'operacion') renderOperacionBox();
     $('#pCostBox').innerHTML = `
       <div class="costbox__rows">
         <span>Insumos por ${L().piece}${cost.breakdown.manual ? ' (a mano)' : (isPiece() ? '' : ` · ${L().batch} de ${y}`)}</span><b>${M.fmt(cost.material)}</b>
-        <span>Operación (gas, mano de obra, empaque)</span><b>${M.fmt(cost.overhead)}</b>
+        <span>Gas ${ob.pct.gas}% · producción ${ob.pct.labor}% · empaque/lavado ${ob.pct.pack}%${ob.manual ? ' · extras' : ''}</span><b>${M.fmt(cost.overhead)}</b>
         ${cost.fixed ? `<span>Gastos fijos prorrateados</span><b>${M.fmt(cost.fixed)}</b>` : ''}
         <span class="costbox__total">Costo unitario</span><b class="costbox__total">${M.fmt(cost.total)}</b>
       </div>

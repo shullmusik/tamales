@@ -46,12 +46,13 @@ TM.views.insumos = (() => {
     const recent = items.filter((i) => { const ch = C.lastChange(i); return ch && Date.now() - ch.at < 30 * 86400000; }).length;
     const tracked = items.filter((i) => S.tracksStock(i));
     const invValue = tracked.reduce((a, i) => a + Math.round(i.stock * i.avgCost), 0);
-    const low = tracked.filter((i) => { const x = C.stockInfo(i); return x && x.pieces != null && x.pieces < 40; }).length;
+    const low = tracked.filter((i) => C.stockGauge(i).level !== 'ok').length;
     $('#insumoStrip').innerHTML =
       U.stat(items.length, 'Insumos') +
       (tracked.length ? U.stat(M.fmt0(invValue), 'En inventario') : '') +
       (tracked.length ? U.stat(low, 'Por agotarse', low ? 'alert' : 'ok') : '') +
       U.stat(recent, 'Cambios (30 d)', recent ? 'alert' : 'ok');
+    renderGlobal(tracked, invValue);
 
     list.innerHTML = '<div class="cards cards--grid">' + items.map((i) => {
       const per = C.costPerBase(i), last = C.lastCostPerBase(i);
@@ -59,8 +60,8 @@ TM.views.insumos = (() => {
       const used = C.affectedProducts(i.id);
       const x = C.stockInfo(i);
       const avgMode = (S.data.settings.costMode || 'avg') === 'avg';
-      const low = x && x.pieces != null && x.pieces < 40;
-      const stockPct = x && x.pieces != null ? Math.max(4, Math.min(100, Math.round((x.pieces / 200) * 100))) : 0;
+      const g = x ? C.stockGauge(i) : null;
+      const low = !!g && (g.level === 'low' || g.level === 'crit' || g.level === 'out');
       return `
       <article class="card icard${low ? ' card--review' : ''}">
         <button class="prod" data-edit="${i.id}">
@@ -69,21 +70,43 @@ TM.views.insumos = (() => {
             <span class="prod__name">${esc(i.name)}</span>
             <span class="prod__meta">${esc(UN.fmt(UN.toBase(i.buyQty, i.buyUnit), i.base))} por <b>${M.fmt(i.buyPrice)}</b>${x && avgMode && Math.round(per * 100) !== Math.round(last * 100) ? ` · última ${M.fmtTiny(last, i.base)}` : ''}</span>
             <span class="prod__meta prod__meta--sub">${x
-              ? (x.stock > 0 ? `Quedan <b>${esc(UN.fmt(x.stock, i.base, true))}</b>${x.pieces != null ? ` · ~${U.num(x.pieces)} ${esc(TM.vertical.labels.pieces)}` : ''}` : '⚠️ Sin existencia')
+              ? (x.stock > 0 ? `Quedan <b>${esc(UN.fmt(x.stock, i.base, true))}</b> de ${esc(UN.fmt(g.max, i.base, true))}${x.pieces != null ? ` · ~${U.num(x.pieces)} ${esc(TM.vertical.labels.pieces)}` : ''}` : '⚠️ Se acabó: no queda nada')
               : (used.length ? 'En ' + used.length + (used.length === 1 ? ' receta' : ' recetas') : 'Sin usar en recetas')}</span>
           </span>
           <span class="prod__margin"><b class="is-plain">${M.fmtTiny(per, i.base)}</b><span>${x && avgMode ? 'promedio' : 'costo'}</span></span>
         </button>
-        ${x && x.pieces != null ? `<div class="pcard__margin"><span class="bar"><span class="bar__fill${low ? ' is-warn' : ''}" style="width:${stockPct}%"></span></span></div>` : ''}
+        ${g ? `<div class="pcard__margin gauge gauge--${g.level}"><span class="bar"><span class="bar__fill" style="width:${Math.max(g.stock > 0 ? 3 : 0, g.pct)}%"></span></span><small>${g.level === 'out' ? 'Se acabó' : g.level === 'crit' ? '¡Casi se acaba! ' + g.pct + '% de lo comprado' : g.level === 'low' ? 'Queda el ' + g.pct + '% de lo comprado' : 'Queda el ' + g.pct + '% de lo comprado'}</small></div>` : ''}
         <div class="card__foot">
           <div class="card__pills">
             ${ch ? U.pill((ch.pct > 0 ? '▲ ' : '▼ ') + M.pct(ch.pct, 1) + ' · ' + U.ago(ch.at), ch.pct > 0 ? 'alert' : 'ok') : ''}
-            ${low ? U.pill('Por agotarse', 'alert') : ''}
+            ${g && g.level === 'out' ? U.pill('Sin existencia', 'alert') : low ? U.pill('Por agotarse', 'alert') : ''}
           </div>
           <button class="btn btn--buy" data-buy="${i.id}">🛒 Compré</button>
         </div>
       </article>`;
     }).join('') + '</div>';
+  }
+
+  /** Panel global de inventario: valor total, cuántos con existencia y lo que se está acabando. */
+  function renderGlobal(tracked, invValue) {
+    const box = $('#invGlobal');
+    if (!tracked.length) { box.innerHTML = ''; box.hidden = true; return; }
+    box.hidden = false;
+    const gauges = tracked.map((i) => ({ i, g: C.stockGauge(i), x: C.stockInfo(i) })).sort((a, b) => a.g.pct - b.g.pct);
+    const lows = gauges.filter((r) => r.g.level !== 'ok').slice(0, 6);
+    const okCount = gauges.length - gauges.filter((r) => r.g.level !== 'ok').length;
+    box.innerHTML = `
+      <div class="inv__head">
+        <div><b class="inv__total">${M.fmt(invValue)}</b><small>en inventario · ${tracked.length} insumo${tracked.length === 1 ? '' : 's'} con existencia</small></div>
+        <div class="inv__dots"><span class="dot dot--ok">${okCount} bien</span><span class="dot dot--low">${gauges.filter((r) => r.g.level === 'low').length} bajos</span><span class="dot dot--crit">${gauges.filter((r) => r.g.level === 'crit' || r.g.level === 'out').length} críticos</span></div>
+      </div>
+      ${lows.length ? '<div class="inv__list">' + lows.map((r) => `
+        <div class="inv__row gauge gauge--${r.g.level}">
+          <span class="inv__emoji">${esc(r.i.emoji)}</span>
+          <span class="inv__name">${esc(r.i.name)}<small>${r.g.level === 'out' ? 'se acabó' : esc(UN.fmt(r.i.stock, r.i.base, true)) + (r.x && r.x.pieces != null ? ' · ~' + U.num(r.x.pieces) + ' piezas' : '')}</small></span>
+          <span class="bar"><span class="bar__fill" style="width:${Math.max(r.g.stock > 0 ? 3 : 0, r.g.pct)}%"></span></span>
+          <b>${r.g.pct}%</b>
+        </div>`).join('') + '</div>' : '<p class="inv__ok">✓ Todo el inventario está arriba del 40 % de lo comprado.</p>'}`;
   }
 
   /* ---------------------------------------------------- 🍲 preparaciones */

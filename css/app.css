@@ -678,3 +678,63 @@ select.field__input{appearance:none;-webkit-appearance:none;background-image:lin
   .sheet__card{max-width:640px}
   .tabbar__btn span:not(.badge){display:inline}
 }
+
+/* ---------- v3.1: existencias visuales y operación por porcentaje ---------- */
+.gauge .bar__fill{background:var(--hoja)}
+.gauge--low .bar__fill{background:#E8A20C}
+.gauge--crit .bar__fill,.gauge--out .bar__fill{background:var(--salsa)}
+.gauge--out .bar{background:var(--salsa-soft)}
+.inv{padding:14px}
+.inv__head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.inv__total{display:block;font-size:24px;font-weight:850;letter-spacing:-.6px}
+.inv__head small{display:block;font-size:12px;color:var(--tinta-2)}
+.inv__dots{display:flex;gap:6px;flex-wrap:wrap}
+.dot{font-size:11.5px;font-weight:700;padding:5px 9px;border-radius:99px;background:var(--hoja-soft);color:var(--hoja)}
+.dot--low{background:#FFF1D6;color:#9A6400}
+.dot--crit{background:var(--salsa-soft);color:var(--salsa)}
+.inv__list{display:flex;flex-direction:column;gap:8px}
+.inv__row{display:grid;grid-template-columns:30px 1fr 96px 42px;gap:8px;align-items:center}
+.inv__emoji{font-size:20px;text-align:center}
+.inv__name{font-size:13.5px;font-weight:700;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.inv__name small{display:block;font-size:11.5px;font-weight:500;color:var(--tinta-2)}
+.inv__row .bar{display:block;height:10px}
+.inv__row b{text-align:right;font-size:13px;font-variant-numeric:tabular-nums}
+.inv__ok{margin:0;font-size:13.5px;color:var(--hoja);font-weight:700}
+.day__stock{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:0 14px 12px}
+.day__stock:empty{display:none}
+.day__stocklabel{font-size:11.5px;font-weight:800;color:var(--tinta-2);text-transform:uppercase;letter-spacing:.4px;margin-right:2px}
+.stockchip{font-size:12.5px;font-weight:700;padding:5px 9px;border-radius:99px;background:var(--hoja-soft);color:var(--hoja)}
+.stockchip small{font-weight:600;opacity:.8}
+.stockchip--low{background:#FFF1D6;color:#9A6400}
+.stockchip--crit,.stockchip--out{background:var(--salsa-soft);color:var(--salsa)}
+.day__stockwarn{flex:1 0 100%;font-size:12.5px;font-weight:700;color:var(--salsa)}
+
+/* ---------- v3.1: pedidos ---------- */
+.orders{display:flex;flex-direction:column;gap:8px;margin-bottom:10px}
+.order{
+  display:flex;align-items:center;gap:10px;width:100%;text-align:left;
+  padding:10px 12px;border-radius:14px;background:var(--fondo);border:1px solid var(--linea);
+}
+.order:active{background:var(--maiz-soft)}
+.order--today{border-color:var(--maiz);background:var(--maiz-soft)}
+.order--late{border-color:var(--salsa);background:var(--salsa-soft)}
+.order__when{flex:none;width:74px;text-align:center;border-right:1px dashed var(--linea);padding-right:8px}
+.order__when b{display:block;font-size:13px;line-height:1.2}
+.order__when small{display:block;font-size:12px;color:var(--tinta-2);margin-top:2px}
+.order__body{flex:1;min-width:0}
+.order__name{display:block;font-size:15px;font-weight:750;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.order__items{display:block;font-size:12.5px;color:var(--tinta-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.order__total{flex:none;text-align:right}
+.order__total b{display:block;font-size:15px}
+.order__total small{font-size:11.5px;color:var(--tinta-2)}
+.orders__day{font-weight:600}
+.chip--pick{margin:0 0 4px;background:var(--panel);border:1.5px solid var(--linea);color:var(--tinta);flex:none}
+.chip--pick small{color:var(--tinta-2);font-weight:600}
+.oitems{display:flex;flex-direction:column;gap:8px;margin-bottom:8px}
+.oitem{display:grid;grid-template-columns:1fr auto 44px;gap:6px;align-items:center;padding:8px;border-radius:14px;background:var(--panel);border:1px solid var(--linea)}
+.oitem .field__input{min-height:44px;padding:8px 10px;font-size:14px;grid-column:1 / -1}
+.oitem__qty{display:flex;align-items:center;gap:2px}
+.oitem__qty .step{width:44px;height:44px;font-size:22px;border-radius:12px}
+.oitem__qty .step__num{width:56px;height:44px;font-size:20px}
+.oitem .ritem__del{height:44px}
+#ordersPanel .panel__total{color:var(--tinta)}
