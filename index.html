@@ -14,7 +14,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
-<link rel="stylesheet" href="css/app.css?v=3.1.0">
+<link rel="stylesheet" href="css/app.css?v=3.2.0">
 </head>
 <body>
 
@@ -182,6 +182,7 @@
       <button type="button" class="segmented__btn is-on" data-pane="basico">Básico</button>
       <button type="button" class="segmented__btn" data-pane="receta">Receta</button>
       <button type="button" class="segmented__btn" data-pane="operacion">Operación</button>
+      <button type="button" class="segmented__btn" data-pane="extras">Extras</button>
     </div>
 
     <!-- básico -->
@@ -257,6 +258,14 @@
         <span class="field__help">Bolsa, servilleta, salsa en bolsita…</span>
       </label>
       <p class="hint" id="oFixedNote"></p>
+    </div>
+
+    <!-- extras: "con bolillo", "con tortillas", "extra queso rallado"… -->
+    <div class="pane" data-pane-id="extras" hidden>
+      <p class="hint">Lo que el cliente puede <b>agregar</b> a este producto al comprarlo, con su precio extra. Si el extra lleva un insumo, la app le calcula el costo y lo descuenta del inventario.</p>
+      <div class="chips" id="xPresets"></div>
+      <div id="xItems" class="xitems"></div>
+      <button type="button" class="btn btn--ghost btn--block" id="xAdd">+ Otro extra</button>
     </div>
 
     <div class="costbox" id="pCostBox"></div>
@@ -619,21 +628,21 @@
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-<script src="js/core/money.js?v=3.1.0"></script>
-<script src="js/core/units.js?v=3.1.0"></script>
-<script src="js/core/store.js?v=3.1.0"></script>
-<script src="js/core/costing.js?v=3.1.0"></script>
-<script src="js/core/files.js?v=3.1.0"></script>
-<script src="js/core/ocr.js?v=3.1.0"></script>
-<script src="js/verticals/cafeteria.js?v=3.1.0"></script>
-<script src="js/ui/common.js?v=3.1.0"></script>
-<script src="js/ui/recipe.js?v=3.1.0"></script>
-<script src="js/ui/pedidos.js?v=3.1.0"></script>
-<script src="js/ui/ventas.js?v=3.1.0"></script>
-<script src="js/ui/productos.js?v=3.1.0"></script>
-<script src="js/ui/insumos.js?v=3.1.0"></script>
-<script src="js/ui/ganancias.js?v=3.1.0"></script>
-<script src="js/app.js?v=3.1.0"></script>
+<script src="js/core/money.js?v=3.2.0"></script>
+<script src="js/core/units.js?v=3.2.0"></script>
+<script src="js/core/store.js?v=3.2.0"></script>
+<script src="js/core/costing.js?v=3.2.0"></script>
+<script src="js/core/files.js?v=3.2.0"></script>
+<script src="js/core/ocr.js?v=3.2.0"></script>
+<script src="js/verticals/cafeteria.js?v=3.2.0"></script>
+<script src="js/ui/common.js?v=3.2.0"></script>
+<script src="js/ui/recipe.js?v=3.2.0"></script>
+<script src="js/ui/pedidos.js?v=3.2.0"></script>
+<script src="js/ui/ventas.js?v=3.2.0"></script>
+<script src="js/ui/productos.js?v=3.2.0"></script>
+<script src="js/ui/insumos.js?v=3.2.0"></script>
+<script src="js/ui/ganancias.js?v=3.2.0"></script>
+<script src="js/app.js?v=3.2.0"></script>
 <script>
 /* Autocuración: si el navegador mezcló archivos de dos versiones (caché vieja),
    borra cachés y service workers viejos y recarga UNA vez. Los datos no se tocan. */

@@ -11,7 +11,7 @@
    (o corre `node tools/release.mjs <versión>`, que hace las dos cosas).
    ========================================================================== */
 
-var VERSION = '3.1.0';
+var VERSION = '3.2.0';
 var CACHE = 'lauri-' + VERSION;
 
 var SHELL = [

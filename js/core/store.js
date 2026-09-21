@@ -40,6 +40,7 @@
        recipe: { mode: "batch", yield: 40,      // "batch": cantidades por tanda | "piece": por pieza (yield = 1)
                  items: [{ insumoId, qty, unit, shown }] },   // qty en unidad BASE; unit/shown = como se capturó ("2 cda")
        extras: { gasPerBatch, laborPerBatch, packPerPiece },  // centavos
+       addons: [{ id, name, emoji, price, insumoId, qty, unit, shown }],  // extras opcionales al vender: "con bolillo" (+$8, consume 1 pz)
        costManual: null,                        // centavos; se usa si la receta está vacía
        targetMargin: null,                      // % propio; null = usa el global
        lastCost: 0,                             // último costo "aceptado" (detecta variaciones)
@@ -50,9 +51,11 @@
      tickets: [{ id, at, store, total, note, photoId,   // compras (ticket = una o varias líneas)
                  lines: [{ insumoId, qtyBase, total, buyQty, buyUnit }] }],   // photoId vive en IndexedDB
      orders: [{ id, customer, phone, date: "2026-09-21", time: "09:30", note,   // pedidos por encargo
-                items: [{ productId, qty, price }], status: "pending" | "done" | "cancelled", createdAt, doneAt }],
+                items: [{ productId, qty, price, addons: [{ id, name, price }] }],   // addons = extras elegidos para esa línea
+                status: "pending" | "done" | "cancelled", createdAt, doneAt }],
      customers: [{ id, name, phone, orders, lastAt }],   // clientes frecuentes (se llenan solos con los pedidos)
-     days: { "2026-09-08": { productId: { made, sold, lost, price, cost } } }  // cost = costo variable del día
+     days: { "2026-09-08": { productId: { made, sold, lost, price, cost,      // cost = costo variable del día
+                 addons: { addonId: { n, price, cost, name } } } } }     // n = cuántos se vendieron con ese extra (foto de precio/costo)
    }
    ========================================================================== */
 window.TM = window.TM || {};
@@ -128,7 +131,11 @@ TM.store = (() => {
       emoji: '🫔', active: true, price: 0, costManual: null, targetMargin: null, lastCost: 0, createdAt: 0, category: ''
     }, p, {
       recipe: Object.assign({ yield: 1, mode: 'batch', items: [] }, p.recipe || {}),   // mode: 'batch' | 'piece'
-      extras: Object.assign({ gasPerBatch: 0, laborPerBatch: 0, packPerPiece: 0 }, p.extras || {})
+      extras: Object.assign({ gasPerBatch: 0, laborPerBatch: 0, packPerPiece: 0 }, p.extras || {}),
+      addons: (p.addons || []).map((a) => ({
+        id: a.id || uid(), name: a.name || '', emoji: a.emoji || '➕', price: a.price | 0,
+        insumoId: a.insumoId || null, qty: Number(a.qty) || 0, unit: a.unit || null, shown: a.shown == null ? null : a.shown
+      }))
     }));
     // v3.1: la operación pasa a porcentajes del costo de insumos; los extras por tanda capturados
     // antes se ponen en cero UNA vez (si no, se contarían dos veces). lastCost = -1 evita abrir
@@ -145,6 +152,7 @@ TM.store = (() => {
     d.fixedCosts = d.fixedCosts || [];
     d.tickets = (d.tickets || []).map((t) => Object.assign({ store: '', total: 0, note: '', photoId: null, lines: [] }, t));
     d.orders = (d.orders || []).map((o) => Object.assign({ customer: '', phone: '', date: '', time: '', note: '', items: [], status: 'pending', createdAt: 0, doneAt: null }, o));
+    d.orders.forEach((o) => { o.items = (o.items || []).map((it) => Object.assign({ qty: 0, price: 0, addons: [] }, it, { addons: it.addons || [] })); });
     d.customers = (d.customers || []).map((c) => Object.assign({ name: '', phone: '', orders: 0, lastAt: 0 }, c));
     d.days = d.days || {};
     return d;
@@ -339,13 +347,28 @@ TM.store = (() => {
       if (!data.days[iso]) data.days[iso] = {};
       const e = data.days[iso][pid] || { made: 0, sold: 0, lost: 0, price: snapshot.price, cost: snapshot.cost };
       Object.assign(e, patch);
-      if (!e.made && !e.sold && !e.lost) {      // día en ceros: no guardar basura y refrescar la foto
+      api.storeEntry(iso, pid, e);
+    },
+    /** Guarda o borra (si quedó en ceros) el registro del día. */
+    storeEntry(iso, pid, e) {
+      const hasAddons = e.addons && Object.keys(e.addons).length > 0;
+      if (!e.made && !e.sold && !e.lost && !hasAddons) {      // día en ceros: no guardar basura y refrescar la foto
         delete data.days[iso][pid];
         if (!Object.keys(data.days[iso]).length) delete data.days[iso];
       } else {
+        if (!hasAddons) delete e.addons;
         data.days[iso][pid] = e;
       }
       save();
+    },
+    /** Cuántos se vendieron con un extra ese día (con foto de precio, costo y nombre). */
+    setEntryAddon(iso, pid, addonId, n, snap, base) {
+      if (!data.days[iso]) data.days[iso] = {};
+      const e = data.days[iso][pid] || { made: 0, sold: 0, lost: 0, price: base.price, cost: base.cost };
+      e.addons = e.addons || {};
+      if (n > 0) e.addons[addonId] = { n, price: snap.price, cost: snap.cost, name: snap.name };
+      else delete e.addons[addonId];
+      api.storeEntry(iso, pid, e);
     },
     dayKeys: () => Object.keys(data.days).sort()
   };

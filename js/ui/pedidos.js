@@ -15,7 +15,9 @@ TM.views.pedidos = (() => {
   let editing = null, draft = null;
 
   const pending = () => S.data.orders.filter((o) => o.status === 'pending').sort((a, b) => (a.date + (a.time || '99:99')).localeCompare(b.date + (b.time || '99:99')));
-  const total = (o) => o.items.reduce((a, it) => a + it.qty * it.price, 0);
+  const lineExtras = (it) => (it.addons || []).reduce((a, x) => a + (x.price | 0), 0);
+  const total = (o) => o.items.reduce((a, it) => a + it.qty * (it.price + lineExtras(it)), 0);
+  const itemText = (it) => { const p = S.product(it.productId); return `${it.qty}× ${p ? p.name : '?'}${it.addons && it.addons.length ? ' + ' + it.addons.map((x) => x.name.replace(/^(con|extra)\s+/i, '')).join(', ') : ''}`; };
   const pieces = (o) => o.items.reduce((a, it) => a + it.qty, 0);
   const fmtTime = (t) => (t ? t.replace(/^(\d{1,2}):(\d{2})$/, (m, h, mm) => `${+h}:${mm}`) : '');
 
@@ -52,7 +54,7 @@ TM.views.pedidos = (() => {
         <span class="order__when"><b>${esc(when)}</b><small>${esc(fmtTime(o.time) || '—')}</small></span>
         <span class="order__body">
           <span class="order__name">${esc(o.customer || 'Sin nombre')}</span>
-          <span class="order__items">${esc(o.items.map((it) => { const p = S.product(it.productId); return `${it.qty}× ${p ? p.name : '?'}`; }).join(' · ') || 'sin productos')}</span>
+          <span class="order__items">${esc(o.items.map(itemText).join(' · ') || 'sin productos')}</span>
         </span>
         <span class="order__total"><b>${M.fmt0(total(o))}</b><small>${pieces(o)} pz</small></span>
       </button>`;
@@ -99,16 +101,21 @@ TM.views.pedidos = (() => {
     const box = $('#oItems');
     if (!prods.length) { box.innerHTML = '<p class="hint">Primero da de alta productos en el Menú.</p>'; $('#oAdd').hidden = true; return; }
     $('#oAdd').hidden = false;
-    box.innerHTML = draft.items.map((it, idx) => `
+    box.innerHTML = draft.items.map((it, idx) => {
+      const p = S.product(it.productId);
+      const addons = (p && p.addons) || [];
+      return `
       <div class="oitem" data-idx="${idx}">
-        <select class="field__input" data-oprod="${idx}" aria-label="Producto">${prods.map((p) => `<option value="${p.id}"${p.id === it.productId ? ' selected' : ''}>${esc(p.emoji + ' ' + p.name)} · ${M.fmt0(p.price)}</option>`).join('')}</select>
+        <select class="field__input" data-oprod="${idx}" aria-label="Producto">${prods.map((x) => `<option value="${x.id}"${x.id === it.productId ? ' selected' : ''}>${esc(x.emoji + ' ' + x.name)} · ${M.fmt0(x.price)}</option>`).join('')}</select>
         <div class="oitem__qty">
           <button type="button" class="step" data-odec="${idx}" aria-label="Menos">−</button>
           <input class="step__num" type="number" inputmode="numeric" min="0" value="${it.qty}" data-oqty="${idx}" aria-label="Cantidad">
           <button type="button" class="step" data-oinc="${idx}" aria-label="Más">+</button>
         </div>
         <button type="button" class="ritem__del" data-odel="${idx}" aria-label="Quitar">✕</button>
-      </div>`).join('') || '<p class="hint">Toca «+ Producto» para agregar lo que te pidieron.</p>';
+        ${addons.length ? `<div class="oitem__addons">${addons.map((a) => { const on = (it.addons || []).some((x) => x.id === a.id); return `<button type="button" class="chip chip--pick${on ? ' is-on' : ''}" data-oaddon="${idx}:${a.id}" aria-pressed="${on}">${esc(a.emoji)} ${esc(a.name)} <small>+${M.fmt0(a.price)}</small></button>`; }).join('')}</div>` : ''}
+      </div>`;
+    }).join('') || '<p class="hint">Toca «+ Producto» para agregar lo que te pidieron.</p>';
     $('#oSum').textContent = draft.items.length ? `${pieces(draft)} piezas · ${M.fmt(total(draft))}` : '';
   }
 
@@ -118,9 +125,13 @@ TM.views.pedidos = (() => {
     draft.date = $('#oDate').value; draft.time = $('#oTime').value; draft.note = $('#oNote').value.trim();
     draft.items.forEach((it, idx) => {
       const row = $(`.oitem[data-idx="${idx}"]`); if (!row) return;
+      const prev = it.productId;
       it.productId = $('[data-oprod]', row).value;
       it.qty = Math.max(0, Math.round(Number($('[data-oqty]', row).value) || 0));
       const p = S.product(it.productId); it.price = p ? p.price : it.price || 0;
+      if (prev !== it.productId) it.addons = [];                        // otro producto: extras desde cero
+      // refrescar precio/nombre de los extras elegidos con lo que hoy dice el producto
+      it.addons = (it.addons || []).map((x) => { const a = p && (p.addons || []).find((y) => y.id === x.id); return a ? { id: a.id, name: a.name, price: a.price } : null; }).filter(Boolean);
     });
   }
 
@@ -147,6 +158,12 @@ TM.views.pedidos = (() => {
         const p = S.product(it.productId); if (!p) return;
         const e = S.entry(iso, p.id) || { made: 0, sold: 0, lost: 0 };
         S.setEntry(iso, p.id, { sold: (e.sold | 0) + it.qty }, { price: p.price, cost: C.variableCost(p) });
+        (it.addons || []).forEach((x) => {
+          const a = (p.addons || []).find((y) => y.id === x.id); if (!a) return;
+          const cur = S.entry(iso, p.id); const n = (cur && cur.addons && cur.addons[a.id] ? cur.addons[a.id].n | 0 : 0) + it.qty;
+          S.setEntryAddon(iso, p.id, a.id, n, { price: a.price, cost: C.addonCost(a), name: a.name }, { price: p.price, cost: C.variableCost(p) });
+          C.applyAddon(a, it.qty);
+        });
       });
     }
     S.updateOrder(o.id, { status: 'done', doneAt: Date.now() });
@@ -156,7 +173,7 @@ TM.views.pedidos = (() => {
   function whatsapp() {
     const o = S.order(editing); if (!o || !o.phone) return;
     const biz = S.data.settings.biz || TM.vertical.appName;
-    const txt = `Hola ${o.customer}, te escribo de ${biz}. Tu pedido (${o.items.map((it) => { const p = S.product(it.productId); return `${it.qty} ${p ? p.name : ''}`; }).join(', ')}) está listo para recoger ${o.date ? 'el ' + U.humanDate(o.date, true) : ''}${o.time ? ' a las ' + fmtTime(o.time) : ''}. Total: ${M.fmt(total(o))}. ¡Gracias!`;
+    const txt = `Hola ${o.customer}, te escribo de ${biz}. Tu pedido (${o.items.map(itemText).join(', ')}) está listo para recoger ${o.date ? 'el ' + U.humanDate(o.date, true) : ''}${o.time ? ' a las ' + fmtTime(o.time) : ''}. Total: ${M.fmt(total(o))}. ¡Gracias!`;
     U.openExternal(`https://wa.me/${o.phone.replace(/\D/g, '')}?text=${encodeURIComponent(txt)}`);
   }
 
@@ -164,7 +181,7 @@ TM.views.pedidos = (() => {
   /** Enlace a pedido.html con el menú activo embebido (nada se sube a ningún servidor). */
   function shareLink() {
     const s = S.data.settings;
-    const prods = S.products(true).map((p) => [p.emoji, p.name, p.price, p.category || 'otros']);
+    const prods = S.products(true).map((p) => [p.emoji, p.name, p.price, p.category || 'otros', (p.addons || []).map((a) => [a.emoji, a.name, a.price])]);
     const cats = (TM.vertical.categories || []).map((c) => [c.id, c.emoji, c.label]);
     const payload = { b: s.biz || TM.vertical.appName, t: (s.phone || '').replace(/\D/g, ''), d: C.sellDays(), c: cats, p: prods };
     const json = JSON.stringify(payload);
@@ -197,9 +214,16 @@ TM.views.pedidos = (() => {
       else if ((m = l.match(/^(?:hora)\s*:\s*(\d{1,2}:\d{2})/i))) out.time = m[1].padStart(5, '0');
       else if ((m = l.match(/^(?:nota)\s*:\s*(.+)$/i))) out.note = m[1].trim();
       else if ((m = l.match(/^[-•*]?\s*(\d+)\s*[x×]\s*(.+?)(?:\s*[·(-]\s*\$?[\d.,]+\)?)?$/i))) {
-        const qty = +m[1], name = m[2].trim().toLowerCase();
+        const qty = +m[1];
+        const parts = m[2].split(/\s\+\s/);                      // "Tamal verde + bolillo, tortillas"
+        const name = parts[0].trim().toLowerCase();
         const p = S.products(true).find((x) => x.name.toLowerCase() === name) || S.products(true).find((x) => name.includes(x.name.toLowerCase()) || x.name.toLowerCase().includes(name));
-        if (p && qty > 0) out.items.push({ productId: p.id, qty, price: p.price });
+        if (p && qty > 0) {
+          const wanted = (parts[1] || '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
+          const addons = wanted.map((w) => (p.addons || []).find((a) => a.name.toLowerCase().includes(w) || w.includes(a.name.toLowerCase().replace(/^(con|extra)\s+/, '')))).filter(Boolean)
+            .map((a) => ({ id: a.id, name: a.name, price: a.price }));
+          out.items.push({ productId: p.id, qty, price: p.price, addons });
+        }
       }
     });
     return out;
@@ -229,10 +253,18 @@ TM.views.pedidos = (() => {
     $('#oAdd').addEventListener('click', () => {
       readForm();
       const first = S.products(true)[0]; if (!first) return;
-      draft.items.push({ productId: first.id, qty: 1, price: first.price });
+      draft.items.push({ productId: first.id, qty: 1, price: first.price, addons: [] });
       renderItems();
     });
     $('#oItems').addEventListener('click', (ev) => {
+      const tog = ev.target.closest('[data-oaddon]');
+      if (tog) {
+        readForm();
+        const [idx, aid] = tog.dataset.oaddon.split(':');
+        const it = draft.items[+idx]; const p = S.product(it.productId); const a = p && (p.addons || []).find((x) => x.id === aid);
+        if (a) { const has = (it.addons || []).some((x) => x.id === aid); it.addons = has ? it.addons.filter((x) => x.id !== aid) : [...(it.addons || []), { id: a.id, name: a.name, price: a.price }]; }
+        renderItems(); U.buzz(8); return;
+      }
       const inc = ev.target.closest('[data-oinc]'), dec = ev.target.closest('[data-odec]'), del = ev.target.closest('[data-odel]');
       if (!inc && !dec && !del) return;
       readForm();

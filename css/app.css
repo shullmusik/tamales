@@ -738,3 +738,26 @@ select.field__input{appearance:none;-webkit-appearance:none;background-image:lin
 .oitem__qty .step__num{width:56px;height:44px;font-size:20px}
 .oitem .ritem__del{height:44px}
 #ordersPanel .panel__total{color:var(--tinta)}
+
+
+/* ---------- v3.2: extras ("con bolillo", "con tortillas", "extra queso rallado") ---------- */
+.addons{padding:2px 0 4px;border-top:1px dashed var(--linea);margin:4px 14px 0;padding-top:6px}
+.addons .counter{padding:4px 0}
+.counter--addon .counter__label b{font-size:13.5px}
+.counter--addon .counter__label small{font-size:11px}
+.step--sm{width:44px;height:44px;border-radius:14px;font-size:22px}
+.step__num--sm{width:56px;height:44px;font-size:22px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+.chip--pick.is-on{background:var(--hoja-soft);border-color:var(--hoja);color:var(--tinta)}
+.chip--pick[disabled]{opacity:.55}
+.xitems{display:flex;flex-direction:column;gap:10px;margin-bottom:12px}
+.xitem{display:grid;grid-template-columns:1fr 104px 44px;gap:6px;align-items:center;padding:10px;border-radius:14px;background:var(--panel);border:1px solid var(--linea)}
+.xitem .field__input{min-height:44px;padding:8px 10px;font-size:14px}
+.xitem__price .field__input{padding-left:26px}
+.xitem__price>span{left:10px;font-size:14px}
+.xitem__ins{grid-column:1 / 2}
+.xitem__qty{grid-column:2 / 3;text-align:right}
+.xitem__unit{grid-column:3 / 4;padding:8px 4px !important;font-size:13px !important;background-image:none !important}
+.xitem__cost{grid-column:1 / -1;font-size:12px;color:var(--tinta-2);text-align:right}
+.oitem__addons{grid-column:1 / -1;display:flex;flex-wrap:wrap;gap:6px}
+.oitem__addons .chip{margin:0;min-height:38px;padding:6px 12px;font-size:13px}

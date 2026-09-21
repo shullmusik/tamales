@@ -36,6 +36,29 @@ TM.verticals.cafeteria = {
   },
   defaults: { targetMargin: 45, priceStep: 50, sellDays: [0] },
 
+  /**
+   * Extras sugeridos ("con bolillo", "con tortillas", "extra queso rallado"…): se ofrecen con un
+   * toque en la pestaña Extras del producto y se agregan solos a tamales y molletes.
+   * match = palabras para encontrar el insumo ya registrado; insumo = cómo crearlo si no existe.
+   */
+  addonPresets: [
+    { key: 'bolillo',      name: 'Con bolillo (torta de tamal)', emoji: '🥖', price: 800,  qty: 1,  unit: 'pz', match: ['bolillo'],
+      insumo: { name: 'Bolillo', emoji: '🥖', buyUnit: 'pz', buyQty: 1, buyPrice: 350 } },
+    { key: 'tortillas',    name: 'Con tortillas',                emoji: '🫓', price: 500,  qty: 60, unit: 'g',  match: ['tortilla'],
+      insumo: { name: 'Tortillas', emoji: '🫓', buyUnit: 'kg', buyQty: 1, buyPrice: 2600 } },
+    { key: 'quesoRallado', name: 'Extra queso rallado',          emoji: '🧀', price: 1000, qty: 40, unit: 'g',  match: ['queso rallado', 'rallado', 'oaxaca', 'chihuahua'],
+      insumo: { name: 'Queso rallado', emoji: '🧀', buyUnit: 'kg', buyQty: 1, buyPrice: 16000 } },
+    { key: 'crema',        name: 'Con crema',                    emoji: '🥛', price: 500,  qty: 30, unit: 'g',  match: ['crema'],
+      insumo: { name: 'Crema', emoji: '🥛', buyUnit: 'l', buyQty: 1, buyPrice: 6500 } },
+    { key: 'aguacate',     name: 'Con aguacate',                 emoji: '🥑', price: 1000, qty: 40, unit: 'g',  match: ['aguacate'],
+      insumo: { name: 'Aguacate', emoji: '🥑', buyUnit: 'kg', buyQty: 1, buyPrice: 7000 } }
+  ],
+  /** Qué extras se agregan solos según el producto: por categoría o por palabra en el nombre. */
+  defaultAddons: [
+    { category: 'tamales', keys: ['bolillo', 'tortillas'] },
+    { nameHas: 'mollete',  keys: ['quesoRallado', 'tortillas'] }
+  ],
+
   /* Datos de ejemplo: precios aproximados de mercado (MXN, 2026). Todo en centavos. */
   seed: {
     insumos: [
@@ -57,6 +80,7 @@ TM.verticals.cafeteria = {
       { key: 'totopos',  name: 'Totopos',                      emoji: '🍘', buyUnit: 'kg', buyQty: 1,   buyPrice: 6000 },
       { key: 'tortilla', name: 'Tortillas',                    emoji: '🫓', buyUnit: 'kg', buyQty: 1,   buyPrice: 2600 },
       { key: 'bolillo',  name: 'Bolillo',                      emoji: '🥖', buyUnit: 'pz', buyQty: 1,   buyPrice: 350 },
+      { key: 'quesoRallado', name: 'Queso rallado',            emoji: '🧀', buyUnit: 'kg', buyQty: 1,   buyPrice: 16000 },
       { key: 'huevo',    name: 'Huevo',                        emoji: '🥚', buyUnit: 'pz', buyQty: 30,  buyPrice: 9000 },
       { key: 'aceite',   name: 'Aceite',                       emoji: '🫙', buyUnit: 'l',  buyQty: 1,   buyPrice: 4500 },
       { key: 'azucar',   name: 'Azúcar',                       emoji: '🍬', buyUnit: 'kg', buyQty: 1,   buyPrice: 2800 },

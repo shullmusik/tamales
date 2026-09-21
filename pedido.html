@@ -6,7 +6,7 @@
 <title>Haz tu pedido</title>
 <meta name="robots" content="noindex">
 <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=3.1.0">
+<link rel="stylesheet" href="css/app.css?v=3.2.0">
 <style>
   /* Página para clientes: el menú viene en el enlace (#…), el pedido sale por WhatsApp. */
   body{padding-bottom:120px}
@@ -28,6 +28,8 @@
   .cta__sum b{display:block;font-size:20px;color:var(--tinta)}
   .cta .btn{flex:none}
   .err{padding:40px 20px;text-align:center;color:var(--tinta-2)}
+  .mitem__addons{display:flex;flex-wrap:wrap;gap:6px;padding:0 14px 12px}
+  .mitem__addons .chip{margin:0;min-height:38px;padding:6px 12px;font-size:13px}
 </style>
 </head>
 <body>
@@ -63,7 +65,7 @@
   var sellDays = data.d || [];
   $('#days').textContent = sellDays.length ? 'Entregamos ' + (sellDays.length === 1 ? 'los ' + DIAS[sellDays[0]] + 's' : sellDays.map(function (d) { return DIAS[d]; }).join(', ')) + '. Arma tu pedido y mándalo por WhatsApp.' : 'Arma tu pedido y mándalo por WhatsApp.';
 
-  var qty = {};
+  var qty = {}, extras = {};   // extras[i] = [j, j…] elegidos para el producto i
   var cats = (data.c || []).slice(); if (!cats.some(function (c) { return c[0] === 'otros'; })) cats.push(['otros', '🍽️', 'Otros']);
   var html = '';
   cats.forEach(function (c) {
@@ -72,8 +74,11 @@
     html += '<h2 class="group-title"><span>' + c[1] + '</span> ' + esc(c[2]) + '</h2><div class="cards">';
     items.forEach(function (p) {
       var i = data.p.indexOf(p);
+      var addons = p[4] || [];
       html += '<article class="card"><div class="mitem"><span class="mitem__emoji">' + esc(p[0]) + '</span><span class="mitem__body"><span class="mitem__name">' + esc(p[1]) + '</span><span class="mitem__price">' + money(p[2]) + ' c/u</span></span>' +
-        '<span class="mitem__qty"><button type="button" class="step" data-dec="' + i + '" aria-label="Menos">−</button><input class="step__num" type="number" inputmode="numeric" min="0" value="0" data-q="' + i + '" aria-label="Cantidad"><button type="button" class="step" data-inc="' + i + '" aria-label="Más">+</button></span></div></article>';
+        '<span class="mitem__qty"><button type="button" class="step" data-dec="' + i + '" aria-label="Menos">−</button><input class="step__num" type="number" inputmode="numeric" min="0" value="0" data-q="' + i + '" aria-label="Cantidad"><button type="button" class="step" data-inc="' + i + '" aria-label="Más">+</button></span></div>' +
+        (addons.length ? '<div class="mitem__addons">' + addons.map(function (a, j) { return '<button type="button" class="chip chip--pick" data-addon="' + i + ':' + j + '" aria-pressed="false">' + esc(a[0]) + ' ' + esc(a[1]) + ' <small>+' + money(a[2]) + '</small></button>'; }).join('') + '</div>' : '') +
+        '</article>';
     });
     html += '</div>';
   });
@@ -95,11 +100,13 @@
 
   function sum() {
     var pieces = 0, total = 0;
-    Object.keys(qty).forEach(function (i) { pieces += qty[i]; total += qty[i] * data.p[i][2]; });
+    Object.keys(qty).forEach(function (i) { pieces += qty[i]; total += qty[i] * (data.p[i][2] + extrasPrice(i)); });
     $('#sumPieces').textContent = pieces + (pieces === 1 ? ' pieza' : ' piezas');
     $('#sumTotal').textContent = money(total);
     return { pieces: pieces, total: total };
   }
+  function extrasPrice(i) { return (extras[i] || []).reduce(function (a, j) { return a + data.p[i][4][j][2]; }, 0); }
+  function extrasText(i) { return (extras[i] || []).map(function (j) { return data.p[i][4][j][1].replace(/^(con|extra)\s+/i, ''); }).join(', '); }
   function set(i, v) { qty[i] = Math.max(0, Math.round(v) || 0); var inp = document.querySelector('[data-q="' + i + '"]'); if (inp) inp.value = qty[i]; sum(); }
   function checkDate() {
     var v = $('#date').value; if (!v || !sellDays.length) { $('#dateHint').textContent = ''; return true; }
@@ -109,6 +116,16 @@
     return ok;
   }
   document.addEventListener('click', function (ev) {
+    var ad = ev.target.closest('[data-addon]');
+    if (ad) {
+      var ij = ad.dataset.addon.split(':'), i = ij[0], j = +ij[1];
+      extras[i] = extras[i] || [];
+      var k = extras[i].indexOf(j);
+      if (k >= 0) extras[i].splice(k, 1); else extras[i].push(j);
+      ad.classList.toggle('is-on', k < 0); ad.setAttribute('aria-pressed', k < 0 ? 'true' : 'false');
+      if (k < 0 && !(qty[i] > 0)) set(i, 1);
+      sum(); return;
+    }
     var inc = ev.target.closest('[data-inc]'), dec = ev.target.closest('[data-dec]');
     if (inc) set(inc.dataset.inc, (qty[inc.dataset.inc] || 0) + 1);
     if (dec) set(dec.dataset.dec, (qty[dec.dataset.dec] || 0) - 1);
@@ -127,7 +144,7 @@
     var lines = ['Pedido para ' + data.b, 'Nombre: ' + name];
     if ($('#phone').value.trim()) lines.push('Tel: ' + $('#phone').value.trim());
     lines.push('Recoger: ' + $('#date').value + ($('#time').value ? ' ' + $('#time').value : ''));
-    Object.keys(qty).forEach(function (i) { if (qty[i] > 0) lines.push('- ' + qty[i] + ' x ' + data.p[i][1] + ' (' + money(qty[i] * data.p[i][2]) + ')'); });
+    Object.keys(qty).forEach(function (i) { if (qty[i] > 0) lines.push('- ' + qty[i] + ' x ' + data.p[i][1] + (extrasText(i) ? ' + ' + extrasText(i) : '') + ' (' + money(qty[i] * (data.p[i][2] + extrasPrice(i))) + ')'); });
     lines.push('Total: ' + money(s.total));
     if ($('#note').value.trim()) lines.push('Nota: ' + $('#note').value.trim());
     location.href = 'https://wa.me/' + (data.t || '') + '?text=' + encodeURIComponent(lines.join('\n'));

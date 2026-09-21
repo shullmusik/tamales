@@ -184,10 +184,52 @@ TM.app = (() => {
         recipe: { mode: p.mode || 'batch', yield: p.recipe.yield, items: p.recipe.items.map(([k, qty]) => ({ insumoId: byKey[k], qty })) }
       });
       S.updateProduct(np.id, { lastCost: C.variableCost(np) });
+      addDefaultAddons(np);
     });
     v.fixedCosts.forEach((f) => {
       if (!S.data.fixedCosts.some((x) => x.name === f.name)) S.addFixed({ name: f.name, emoji: f.emoji, amount: f.amount });
     });
+  }
+
+  /* ---------------------------------------------- extras por defecto */
+  /** Busca un insumo por las palabras del sugerido; si no existe, lo crea con su precio de mercado. */
+  function findOrCreateInsumo(preset) {
+    if (!preset || !preset.insumo) return null;
+    const norm = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    let ins = S.data.insumos.find((i) => i.kind !== 'prep' && preset.match.some((w) => norm(i.name).includes(norm(w))));
+    if (!ins) ins = S.addInsumo(Object.assign({}, preset.insumo));
+    return ins;
+  }
+
+  /** Agrega a un producto los extras que le tocan por categoría o nombre (tamales → bolillo y tortillas…). */
+  function addDefaultAddons(p) {
+    const rules = TM.vertical.defaultAddons || [], presets = TM.vertical.addonPresets || [];
+    const keys = [];
+    rules.forEach((r) => {
+      if ((r.category && (p.category || 'otros') === r.category) || (r.nameHas && p.name.toLowerCase().includes(r.nameHas))) r.keys.forEach((k) => { if (!keys.includes(k)) keys.push(k); });
+    });
+    if (!keys.length) return false;
+    const addons = (p.addons || []).slice();
+    let added = false;
+    keys.forEach((k) => {
+      if (addons.some((a) => a.presetKey === k)) return;
+      const pr = presets.find((x) => x.key === k); if (!pr) return;
+      const ins = findOrCreateInsumo(pr);
+      addons.push({ id: S.uid(), presetKey: k, name: pr.name, emoji: pr.emoji, price: pr.price,
+        insumoId: ins ? ins.id : null, qty: ins ? TM.units.toBase(pr.qty, pr.unit, ins) : 0, unit: ins ? pr.unit : null, shown: ins ? pr.qty : null });
+      added = true;
+    });
+    if (added) S.updateProduct(p.id, { addons });
+    return added;
+  }
+
+  /** Una sola vez: los productos ya capturados reciben sus extras sugeridos. */
+  function ensureDefaultAddons() {
+    if (S.data.settings.addonsSeeded) return;
+    let n = 0;
+    S.products().forEach((p) => { if (!(p.addons || []).length && addDefaultAddons(p)) n++; });
+    S.data.settings.addonsSeeded = true; S.save();
+    if (n) setTimeout(() => U.toast(`Extras agregados a ${n} producto(s): bolillo, tortillas, queso rallado…`), 900);
   }
 
   /* ----------------------------------------------------------- eventos */
@@ -292,13 +334,14 @@ TM.app = (() => {
     Object.keys(TM.views).forEach((k) => TM.views[k].wire());
     wire(); wirePWA();
     C.recompute(null);                                   // por si cambió algo con la app cerrada
+    ensureDefaultAddons();
     const want = new URLSearchParams(location.search).get('v');
     setView(VIEWS[want] ? want : (S.data.products.length ? 'ventas' : 'productos'));
     TM.app.ready = true;
     try { sessionStorage.removeItem('tm-heal'); } catch (e) { /* la autocuración de index.html puede volver a actuar */ }
   }
 
-  return { setView, render, badge, fabLabel, seed, init, ready: false, version: '3.1.0' };
+  return { setView, render, badge, fabLabel, seed, init, findOrCreateInsumo, addDefaultAddons, ready: false, version: '3.2.0' };
 })();
 
 // TM.app ya existe aquí: init puede usarlo (badge, render) sin importar cuándo corra.

@@ -63,9 +63,26 @@ TM.views.ventas = (() => {
           <button class="step step--big" data-inc="lost" data-id="${p.id}" aria-label="Sumar un pedido no surtido de ${esc(p.name)}">+1 pedido</button>
         </div>
       </div>
+      ${addonRows(p, e)}
       <div class="day__foot" data-foot="${p.id}">${foot(m, p.id)}</div>
       <div class="day__stock" data-stock="${p.id}">${stockLine(p)}</div>
     </article>`;
+  }
+
+  /** Contadores de extras vendidos: "🥖 Con bolillo · +$8 · te deja $5". */
+  function addonRows(p, e) {
+    if (!p.addons || !p.addons.length) return '';
+    return '<div class="addons">' + p.addons.map((a) => {
+      const n = e.addons && e.addons[a.id] ? e.addons[a.id].n | 0 : 0;
+      const cost = C.addonCost(a);
+      return `
+      <div class="counter counter--addon" data-addon-row="${a.id}">
+        <button class="step step--sm" data-adec="${a.id}" data-id="${p.id}" aria-label="Restar ${esc(a.name)}">−</button>
+        <span class="counter__label"><b>${esc(a.emoji)} ${esc(a.name)}</b><small>+${M.fmt(a.price)}${cost ? ` · te deja ${M.fmt(a.price - cost)}` : ''}</small></span>
+        <input class="step__num step__num--sm" type="number" inputmode="numeric" min="0" value="${n}" data-anum="${a.id}" data-id="${p.id}" aria-label="Vendidos con ${esc(a.name)}">
+        <button class="step step--sm" data-ainc="${a.id}" data-id="${p.id}" aria-label="Sumar ${esc(a.name)}">+</button>
+      </div>`;
+    }).join('') + '</div>';
   }
 
   const counter = (pid, field, label, help, value) => `
@@ -83,6 +100,7 @@ TM.views.ventas = (() => {
       U.pill(`Sobran ${m.left}`, m.left > 0 ? '' : 'ok') +
       U.pill(`Eficiencia ${eff}%`, eff >= 80 ? 'ok' : '') +
       (m.lost > 0 ? U.pill(`Perdiste ${M.fmt0(m.lostValue)}`, 'alert') : '') +
+      (m.extraN > 0 ? U.pill(`Extras ${m.extraN} · ${M.fmt0(m.extraRevenue)}`, 'ok') : '') +
       U.pill(`Ganancia ${M.fmt0(m.gross)}`, m.gross >= 0 ? 'ok' : 'alert') +
       `<span class="bar"><span class="bar__fill" style="width:${Math.min(100, eff)}%"></span></span>`;
   }
@@ -107,6 +125,11 @@ TM.views.ventas = (() => {
     ['made', 'sold', 'lost'].forEach((f) => {
       const input = $(`[data-num="${f}"]`, card);
       if (input && document.activeElement !== input) input.value = m[f];
+    });
+    (p.addons || []).forEach((a) => {
+      const input = $(`[data-anum="${a.id}"]`, card);
+      const n = e.addons && e.addons[a.id] ? e.addons[a.id].n | 0 : 0;
+      if (input && document.activeElement !== input) input.value = n;
     });
     $(`[data-foot="${pid}"]`, card).innerHTML = foot(m, pid);
     const sl = $(`[data-stock="${pid}"]`, card); if (sl) sl.innerHTML = stockLine(p);
@@ -136,6 +159,25 @@ TM.views.ventas = (() => {
     }
     patch(pid);
     return true;
+  }
+
+  /** Vendidos con un extra: guarda la foto de precio/costo y descuenta el insumo del extra. */
+  function setAddon(pid, addonId, n) {
+    const p = S.product(pid); if (!p) return false;
+    const a = (p.addons || []).find((x) => x.id === addonId); if (!a) return false;
+    n = Math.max(0, Math.round(n));
+    const e = S.entry(U.state.day, pid);
+    const before = e && e.addons && e.addons[addonId] ? e.addons[addonId].n | 0 : 0;
+    if (n === before) return false;
+    S.setEntryAddon(U.state.day, pid, addonId, n, { price: a.price, cost: C.addonCost(a), name: a.name }, snapshot(p));
+    C.applyAddon(a, n - before);
+    patch(pid);
+    return true;
+  }
+  function bumpAddon(pid, addonId, delta) {
+    const e = S.entry(U.state.day, pid);
+    const before = e && e.addons && e.addons[addonId] ? e.addons[addonId].n | 0 : 0;
+    return setAddon(pid, addonId, before + delta);
   }
 
   /* mantener presionado repite la cuenta */
@@ -168,7 +210,11 @@ TM.views.ventas = (() => {
       const inc = ev.target.closest('[data-inc]');
       if (inc) { U.buzz(inc.classList.contains('step--big') ? 22 : 10); bump(inc.dataset.id, inc.dataset.inc, 1); return; }
       const dec = ev.target.closest('[data-dec]');
-      if (dec) { U.buzz(10); bump(dec.dataset.id, dec.dataset.dec, -1); }
+      if (dec) { U.buzz(10); bump(dec.dataset.id, dec.dataset.dec, -1); return; }
+      const ainc = ev.target.closest('[data-ainc]');
+      if (ainc) { U.buzz(10); bumpAddon(ainc.dataset.id, ainc.dataset.ainc, 1); return; }
+      const adec = ev.target.closest('[data-adec]');
+      if (adec) { U.buzz(10); bumpAddon(adec.dataset.id, adec.dataset.adec, -1); }
     });
     list.addEventListener('pointerdown', (ev) => {
       const btn = ev.target.closest('[data-inc],[data-dec]');
@@ -178,6 +224,8 @@ TM.views.ventas = (() => {
     ['pointerup', 'pointercancel', 'pointerleave', 'touchend'].forEach((e) => list.addEventListener(e, stopHold));
     window.addEventListener('scroll', stopHold, { passive: true });
     list.addEventListener('change', (ev) => {
+      const ai = ev.target.closest('[data-anum]');
+      if (ai) { setAddon(ai.dataset.id, ai.dataset.anum, Number(ai.value)); return; }
       const input = ev.target.closest('[data-num]'); if (!input) return;
       const p = S.product(input.dataset.id); if (!p) return;
       const before = (S.entry(U.state.day, p.id) || { made: 0 }).made | 0;
@@ -185,7 +233,7 @@ TM.views.ventas = (() => {
       if (input.dataset.num === 'made') C.applyProduction(p, int(input.value) - before);
       patch(p.id);
     });
-    list.addEventListener('focusin', (ev) => { if (ev.target.matches('[data-num]')) ev.target.select(); });
+    list.addEventListener('focusin', (ev) => { if (ev.target.matches('[data-num],[data-anum]')) ev.target.select(); });
   }
 
   return { render, wire, stopHold };

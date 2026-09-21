@@ -89,6 +89,19 @@ TM.costing = (() => {
     consumption(p, deltaPieces).forEach((c) => TM.store.consume(c.ins.id, c.qtyBase));
   }
 
+  /* ------------------------------------------------------------ extras */
+  /** Costo de un extra ("con bolillo"): lo que cuesta el insumo que lleva. 0 si no tiene insumo. */
+  function addonCost(a) {
+    const ins = a && a.insumoId ? TM.store.insumo(a.insumoId) : null;
+    return ins && a.qty > 0 ? Math.round(costPerBase(ins) * a.qty) : 0;
+  }
+  /** Descuenta del inventario el insumo de un extra vendido n veces (n < 0 devuelve). */
+  function applyAddon(a, n) {
+    if (!a || !a.insumoId || !(a.qty > 0) || !n) return;
+    consumption({ recipe: { yield: 1, items: [{ insumoId: a.insumoId, qty: a.qty }] } }, n)
+      .forEach((c) => TM.store.consume(c.ins.id, c.qtyBase));
+  }
+
   /** Variación del último cambio de precio de un insumo: {pct, at, from, to} | null */
   function lastChange(ins) {
     const h = ins.history || [];
@@ -325,13 +338,19 @@ TM.costing = (() => {
 
   function metrics(e) {
     const made = e.made | 0, sold = e.sold | 0, lost = e.lost | 0;
-    const revenue = sold * e.price, cost = made * e.cost;
+    let extraRevenue = 0, extraCost = 0, extraN = 0;
+    Object.keys(e.addons || {}).forEach((id) => {
+      const x = e.addons[id]; const n = x.n | 0;
+      extraRevenue += n * (x.price | 0); extraCost += n * (x.cost | 0); extraN += n;
+    });
+    const revenue = sold * e.price + extraRevenue, cost = made * e.cost + extraCost;
     return {
       made, sold, lost, revenue, cost,
       gross: revenue - cost,
       left: Math.max(0, made - sold),
       eff: made > 0 ? (sold / made) * 100 : 0,
-      lostValue: lost * e.price
+      lostValue: lost * e.price,
+      extraRevenue, extraCost, extraN
     };
   }
 
@@ -344,10 +363,10 @@ TM.costing = (() => {
       let touched = false;
       Object.keys(day).forEach((pid) => {
         const m = metrics(day[pid]);
-        if (!m.made && !m.sold && !m.lost) return;
+        if (!m.made && !m.sold && !m.lost && !m.extraN) return;
         touched = true;
-        const r = by[pid] || (by[pid] = { id: pid, made: 0, sold: 0, lost: 0, left: 0, revenue: 0, cost: 0, gross: 0, lostValue: 0 });
-        ['made', 'sold', 'lost', 'left', 'revenue', 'cost', 'gross', 'lostValue'].forEach((k) => { r[k] += m[k]; t[k] += m[k]; });
+        const r = by[pid] || (by[pid] = { id: pid, made: 0, sold: 0, lost: 0, left: 0, revenue: 0, cost: 0, gross: 0, lostValue: 0, extraRevenue: 0, extraN: 0 });
+        ['made', 'sold', 'lost', 'left', 'revenue', 'cost', 'gross', 'lostValue', 'extraRevenue', 'extraN'].forEach((k) => { r[k] += m[k]; t[k] = (t[k] || 0) + m[k]; });
       });
       if (touched) t.activeDays++;
     });
@@ -368,7 +387,7 @@ TM.costing = (() => {
   }
 
   return {
-    costPerBase, lastCostPerBase, prepCostPerBase, prepBatchCost, affectedProducts, stockInfo, stockGauge, remainingFor, consumption, applyProduction, lastChange, hasRecipe, materialCost, overheadBreakdown, overheadCost, fixedAllocation, variableCost,
+    costPerBase, lastCostPerBase, prepCostPerBase, prepBatchCost, affectedProducts, stockInfo, stockGauge, remainingFor, consumption, applyProduction, addonCost, applyAddon, lastChange, hasRecipe, materialCost, overheadBreakdown, overheadCost, fixedAllocation, variableCost,
     unitCost, marginOf, suggestedPrice, marginPct, summary,
     recompute, acceptReview, reviewMessage,
     fixedMonthly, sellDays, isSellDay, sellDaysPerMonth, fixedPerSellDay, sellDayLabel, avgMadePerDay, breakEven, metrics, aggregate

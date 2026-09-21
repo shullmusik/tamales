@@ -113,8 +113,9 @@ TM.views.productos = (() => {
     draft = p ? JSON.parse(JSON.stringify(p)) : {
       name: '', emoji: TM.vertical.emojis.product[0], category: CATS()[0] ? CATS()[0].id : 'otros',
       price: 0, costManual: null, targetMargin: null,
-      recipe: { mode: 'batch', yield: 40, items: [] }, extras: { gasPerBatch: 0, laborPerBatch: 0, packPerPiece: 0 }
+      recipe: { mode: 'batch', yield: 40, items: [] }, extras: { gasPerBatch: 0, laborPerBatch: 0, packPerPiece: 0 }, addons: []
     };
+    draft.addons = draft.addons || [];
     $('#sheetProductTitle').textContent = p ? `Editar ${L().product}` : `Nuevo ${L().product}`;
     $('#pDelete').hidden = !p;
     $('#pSubmit').textContent = p ? 'Guardar cambios' : `Añadir ${L().product}`;
@@ -130,7 +131,63 @@ TM.views.productos = (() => {
     if (name === 'basico') renderBasico();
     if (name === 'receta') renderReceta();
     if (name === 'operacion') renderOperacion();
+    if (name === 'extras') renderExtras();
     renderCostBox();
+  }
+
+  /* ---- extras ("con bolillo", "con tortillas", "extra queso rallado") ---- */
+  function renderExtras() {
+    const presets = TM.vertical.addonPresets || [];
+    $('#xPresets').innerHTML = presets.map((pr) => {
+      const has = draft.addons.some((a) => a.presetKey === pr.key);
+      return `<button type="button" class="chip chip--pick${has ? ' is-on' : ''}" data-xpreset="${pr.key}"${has ? ' disabled' : ''}>${pr.emoji} ${esc(pr.name)} <small>+${M.fmt0(pr.price)}</small></button>`;
+    }).join('');
+    const insumos = S.data.insumos.slice().sort((a, b) => a.name.localeCompare(b.name, 'es'));
+    const box = $('#xItems');
+    if (!draft.addons.length) { box.innerHTML = '<p class="hint">Sin extras. Toca uno de los sugeridos o «Otro extra».</p>'; return; }
+    box.innerHTML = draft.addons.map((a, idx) => {
+      const ins = a.insumoId ? S.insumo(a.insumoId) : null;
+      const base = ins ? ins.base : 'g';
+      const shown = a.unit && a.shown != null ? { qty: a.shown, unit: a.unit } : TM.units.fromBase(a.qty, base);
+      const cost = C.addonCost(a);
+      return `
+      <div class="xitem" data-xidx="${idx}">
+        <input class="field__input xitem__name" type="text" maxlength="40" value="${esc(a.name)}" placeholder="Con bolillo" data-xname="${idx}" aria-label="Nombre del extra">
+        <div class="field__money xitem__price"><span>$</span><input class="field__input" type="number" inputmode="decimal" step="0.5" min="0" value="${M.input(a.price)}" placeholder="0" data-xprice="${idx}" aria-label="Precio extra"></div>
+        <button type="button" class="ritem__del" data-xdel="${idx}" aria-label="Quitar extra">✕</button>
+        <select class="field__input xitem__ins" data-xins="${idx}" aria-label="Insumo que lleva">
+          <option value="">Sin insumo (solo precio)</option>
+          ${insumos.map((i) => `<option value="${i.id}"${i.id === a.insumoId ? ' selected' : ''}>${esc(i.emoji + ' ' + i.name)}</option>`).join('')}
+        </select>
+        <input class="field__input xitem__qty" type="number" inputmode="decimal" min="0" step="any" value="${ins ? (shown.qty || '') : ''}" placeholder="0" data-xqty="${idx}" aria-label="Cantidad"${ins ? '' : ' disabled'}>
+        <select class="field__input xitem__unit" data-xunit="${idx}" aria-label="Unidad"${ins ? '' : ' disabled'}>
+          ${ins ? TM.units.forBase(base).map((u) => `<option value="${u}"${u === shown.unit ? ' selected' : ''}>${TM.units.short(u)}</option>`).join('') : ''}
+        </select>
+        <small class="xitem__cost">${ins ? `Cuesta ${M.fmt(cost)} · te deja ${M.fmt(a.price - cost)}` : 'Sin costo de insumo · todo el precio es ganancia'}</small>
+      </div>`;
+    }).join('');
+  }
+
+  function readExtras() {
+    draft.addons.forEach((a, idx) => {
+      const row = $(`.xitem[data-xidx="${idx}"]`); if (!row) return;
+      a.name = $('[data-xname]', row).value.trim();
+      a.price = M.cents($('[data-xprice]', row).value);
+      a.insumoId = $('[data-xins]', row).value || null;
+      const ins = a.insumoId ? S.insumo(a.insumoId) : null;
+      if (ins) {
+        const q = $('[data-xqty]', row).value, u = $('[data-xunit]', row).value || ins.base;
+        a.unit = u; a.shown = q === '' ? null : Number(q); a.qty = TM.units.toBase(q, u, ins);
+      } else { a.qty = 0; a.unit = null; a.shown = null; }
+    });
+  }
+
+  /** Crea un extra a partir de un sugerido; busca (o crea) el insumo que lleva. */
+  function addPreset(key) {
+    const pr = (TM.vertical.addonPresets || []).find((x) => x.key === key); if (!pr) return;
+    const ins = TM.app.findOrCreateInsumo(pr);
+    draft.addons.push({ id: S.uid(), presetKey: pr.key, name: pr.name, emoji: pr.emoji, price: pr.price,
+      insumoId: ins ? ins.id : null, qty: ins ? TM.units.toBase(pr.qty, pr.unit, ins) : 0, unit: ins ? pr.unit : null, shown: ins ? pr.qty : null });
   }
 
   /* ---- básico ---- */
@@ -229,7 +286,7 @@ TM.views.productos = (() => {
     draft.extras.laborPerBatch = M.cents($('#oLabor').value);
     draft.extras.packPerPiece = M.cents($('#oPack').value);
   }
-  function readAll() { if (pane === 'basico') readBasico(); if (pane === 'receta') readReceta(); if (pane === 'operacion') readOperacion(); }
+  function readAll() { if (pane === 'basico') readBasico(); if (pane === 'receta') readReceta(); if (pane === 'operacion') readOperacion(); if (pane === 'extras') readExtras(); }
 
   function submit(ev) {
     ev.preventDefault();
@@ -237,9 +294,10 @@ TM.views.productos = (() => {
     if (!draft.name) { showPane('basico'); U.toast('Escribe el nombre'); $('#pName').focus(); return; }
     if (!(draft.price > 0)) { showPane('basico'); U.toast('Escribe el precio de venta'); $('#pPrice').focus(); return; }
     draft.recipe.items = draft.recipe.items.filter((it) => S.insumo(it.insumoId) && it.qty > 0);
+    draft.addons = draft.addons.filter((a) => a.name);
     const patch = {
       name: draft.name, emoji: draft.emoji, category: draft.category, price: draft.price, costManual: draft.costManual,
-      targetMargin: draft.targetMargin, recipe: draft.recipe, extras: draft.extras
+      targetMargin: draft.targetMargin, recipe: draft.recipe, extras: draft.extras, addons: draft.addons
     };
     if (editing) {
       S.updateProduct(editing, patch);
@@ -300,6 +358,27 @@ TM.views.productos = (() => {
       renderReceta(); renderCostBox(); U.buzz(8);
     });
     ['#oGas', '#oLabor', '#oPack'].forEach((s) => $(s).addEventListener('input', () => { readOperacion(); renderCostBox(); }));
+
+    // extras
+    $('#xPresets').addEventListener('click', (ev) => {
+      const b = ev.target.closest('[data-xpreset]'); if (!b || b.disabled) return;
+      readExtras(); addPreset(b.dataset.xpreset); renderExtras(); U.buzz(8);
+    });
+    $('#xAdd').addEventListener('click', () => {
+      readExtras();
+      draft.addons.push({ id: S.uid(), name: '', emoji: '➕', price: 0, insumoId: null, qty: 0, unit: null, shown: null });
+      renderExtras();
+      const last = $$('#xItems [data-xname]').pop(); if (last) last.focus();
+    });
+    $('#xItems').addEventListener('click', (ev) => {
+      const d = ev.target.closest('[data-xdel]'); if (!d) return;
+      readExtras(); draft.addons.splice(+d.dataset.xdel, 1); renderExtras(); U.buzz(8);
+    });
+    $('#xItems').addEventListener('change', (ev) => {
+      readExtras();
+      if (ev.target.dataset.xins != null) renderExtras();     // cambió el insumo: refrescar unidades
+      else { const row = ev.target.closest('.xitem'); if (row) { const a = draft.addons[+row.dataset.xidx]; const c = C.addonCost(a); $('.xitem__cost', row).textContent = a.insumoId ? `Cuesta ${M.fmt(c)} · te deja ${M.fmt(a.price - c)}` : 'Sin costo de insumo · todo el precio es ganancia'; } }
+    });
 
     $('#pDelete').addEventListener('click', () => {
       const p = S.product(editing); if (!p) return;
