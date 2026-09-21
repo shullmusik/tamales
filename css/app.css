@@ -761,3 +761,8 @@ select.field__input{appearance:none;-webkit-appearance:none;background-image:lin
 .xitem__cost{grid-column:1 / -1;font-size:12px;color:var(--tinta-2);text-align:right}
 .oitem__addons{grid-column:1 / -1;display:flex;flex-wrap:wrap;gap:6px}
 .oitem__addons .chip{margin:0;min-height:38px;padding:6px 12px;font-size:13px}
+
+/* medidas de cocina del insumo: 3 por fila (cdta · cda · taza / puñado · mano) */
+.kitchen-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.kitchen-grid .field{margin-bottom:8px}
+.kitchen-grid .field__help{text-align:center}

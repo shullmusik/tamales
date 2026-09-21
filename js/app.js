@@ -341,7 +341,7 @@ TM.app = (() => {
     try { sessionStorage.removeItem('tm-heal'); } catch (e) { /* la autocuración de index.html puede volver a actuar */ }
   }
 
-  return { setView, render, badge, fabLabel, seed, init, findOrCreateInsumo, addDefaultAddons, ready: false, version: '3.2.0' };
+  return { setView, render, badge, fabLabel, seed, init, findOrCreateInsumo, addDefaultAddons, ready: false, version: '3.2.1' };
 })();
 
 // TM.app ya existe aquí: init puede usarlo (badge, render) sin importar cuándo corra.

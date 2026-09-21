@@ -14,7 +14,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
-<link rel="stylesheet" href="css/app.css?v=3.2.0">
+<link rel="stylesheet" href="css/app.css?v=3.2.1">
 </head>
 <body>
 
@@ -309,12 +309,8 @@
 
     <div id="iKitchen" hidden>
       <span class="field__label">Medidas de cocina de este insumo (en <span id="iKitchenBase">g</span>)</span>
-      <div class="field-trio">
-        <label class="field"><input class="field__input" id="iK_cdta" type="number" inputmode="decimal" min="0" step="any" aria-label="Gramos por cucharadita"><span class="field__help">1 cucharadita</span></label>
-        <label class="field"><input class="field__input" id="iK_cda" type="number" inputmode="decimal" min="0" step="any" aria-label="Gramos por cucharada"><span class="field__help">1 cucharada</span></label>
-        <label class="field"><input class="field__input" id="iK_taza" type="number" inputmode="decimal" min="0" step="any" aria-label="Gramos por taza"><span class="field__help">1 taza</span></label>
-      </div>
-      <p class="hint">Vacío = equivalencia de agua (5 · 15 · 240). Una taza de harina pesa ~120 g; de manteca ~200 g; de azúcar ~200 g.</p>
+      <div class="kitchen-grid" id="iKitchenRows"></div>
+      <p class="hint" id="iKitchenHint"></p>
     </div>
 
     <div id="iStockWrap" hidden>
@@ -628,21 +624,21 @@
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-<script src="js/core/money.js?v=3.2.0"></script>
-<script src="js/core/units.js?v=3.2.0"></script>
-<script src="js/core/store.js?v=3.2.0"></script>
-<script src="js/core/costing.js?v=3.2.0"></script>
-<script src="js/core/files.js?v=3.2.0"></script>
-<script src="js/core/ocr.js?v=3.2.0"></script>
-<script src="js/verticals/cafeteria.js?v=3.2.0"></script>
-<script src="js/ui/common.js?v=3.2.0"></script>
-<script src="js/ui/recipe.js?v=3.2.0"></script>
-<script src="js/ui/pedidos.js?v=3.2.0"></script>
-<script src="js/ui/ventas.js?v=3.2.0"></script>
-<script src="js/ui/productos.js?v=3.2.0"></script>
-<script src="js/ui/insumos.js?v=3.2.0"></script>
-<script src="js/ui/ganancias.js?v=3.2.0"></script>
-<script src="js/app.js?v=3.2.0"></script>
+<script src="js/core/money.js?v=3.2.1"></script>
+<script src="js/core/units.js?v=3.2.1"></script>
+<script src="js/core/store.js?v=3.2.1"></script>
+<script src="js/core/costing.js?v=3.2.1"></script>
+<script src="js/core/files.js?v=3.2.1"></script>
+<script src="js/core/ocr.js?v=3.2.1"></script>
+<script src="js/verticals/cafeteria.js?v=3.2.1"></script>
+<script src="js/ui/common.js?v=3.2.1"></script>
+<script src="js/ui/recipe.js?v=3.2.1"></script>
+<script src="js/ui/pedidos.js?v=3.2.1"></script>
+<script src="js/ui/ventas.js?v=3.2.1"></script>
+<script src="js/ui/productos.js?v=3.2.1"></script>
+<script src="js/ui/insumos.js?v=3.2.1"></script>
+<script src="js/ui/ganancias.js?v=3.2.1"></script>
+<script src="js/app.js?v=3.2.1"></script>
 <script>
 /* Autocuración: si el navegador mezcló archivos de dos versiones (caché vieja),
    borra cachés y service workers viejos y recarga UNA vez. Los datos no se tocan. */

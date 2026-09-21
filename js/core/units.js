@@ -27,11 +27,18 @@ TM.units = (() => {
   };
 
   /** Medidas de cocina: valen para g y ml; factor por defecto (agua), ajustable por insumo. */
+  /* factor por unidad base: cucharadas y tazas solo para g/ml; puñado y mano también para piezas. */
   const KITCHEN = {
-    cdta: { label: 'cucharadita', short: 'cdta', factor: 5 },
-    cda:  { label: 'cucharada',   short: 'cda',  factor: 15 },
-    taza: { label: 'taza',        short: 'taza', factor: 240 }
+    cdta:   { label: 'cucharadita', short: 'cdta',   factor: { g: 5,   ml: 5 } },
+    cda:    { label: 'cucharada',   short: 'cda',    factor: { g: 15,  ml: 15 } },
+    taza:   { label: 'taza',        short: 'taza',   plural: 'tazas',   factor: { g: 240, ml: 240 } },
+    punado: { label: 'puñado',      short: 'puñado', plural: 'puñados', factor: { g: 30,  ml: 30, pz: 6 } },
+    mano:   { label: 'mano',        short: 'mano',   plural: 'manos',   factor: { g: 50,  ml: 50, pz: 10 } }
   };
+  /** Medidas de cocina válidas para una base (g, ml o pz). */
+  const kitchenFor = (base) => Object.keys(KITCHEN).filter((k) => KITCHEN[k].factor[base] != null);
+  /** Equivalencia por defecto (agua / tamaño típico) de una medida en esa base. */
+  const defaultFactor = (unit, base) => (KITCHEN[unit] && KITCHEN[unit].factor[base]) || 0;
 
   const isKitchen = (u) => !!KITCHEN[u];
   const get = (u) => UNITS[u] || UNITS.pz;
@@ -43,16 +50,13 @@ TM.units = (() => {
   const buyUnits = () => Object.keys(UNITS);
 
   /** Unidades válidas en una RECETA para una base: g -> g, kg, cdta, cda, taza. */
-  const forBase = (base) => {
-    const own = Object.keys(UNITS).filter((k) => UNITS[k].base === base);
-    return base === 'pz' ? own : own.concat(Object.keys(KITCHEN));
-  };
+  const forBase = (base) => Object.keys(UNITS).filter((k) => UNITS[k].base === base).concat(kitchenFor(base));
 
   /** Factor de una unidad hacia la base, con la equivalencia propia del insumo si la tiene. */
   const factorOf = (unit, insumo) => {
     if (KITCHEN[unit]) {
       const own = insumo && insumo.kitchen && Number(insumo.kitchen[unit]);
-      return own > 0 ? own : KITCHEN[unit].factor;
+      return own > 0 ? own : defaultFactor(unit, insumo ? insumo.base : 'g');
     }
     return get(unit).factor;
   };
@@ -80,7 +84,11 @@ TM.units = (() => {
   const fmt = (baseQty, base, loose) => { const r = fromBase(baseQty, base, loose); return nice(r.qty) + ' ' + short(r.unit); };
 
   /** Renglón de receta: respeta la unidad en que se capturó ("2 cda"), si no, la base. */
-  const fmtItem = (item, base) => (item.unit && item.shown != null ? nice(Number(item.shown)) + ' ' + short(item.unit) : fmt(item.qty, base));
+  const fmtItem = (item, base) => {
+    if (!item.unit || item.shown == null) return fmt(item.qty, base);
+    const n = Number(item.shown), k = KITCHEN[item.unit];
+    return nice(n) + ' ' + (k && k.plural && n !== 1 ? k.plural : short(item.unit));
+  };
 
-  return { BASES, UNITS, KITCHEN, isKitchen, get, baseOf, label, short, buyUnits, forBase, factorOf, toBase, fromBase, fmt, fmtItem, nice };
+  return { BASES, UNITS, KITCHEN, isKitchen, kitchenFor, defaultFactor, get, baseOf, label, short, buyUnits, forBase, factorOf, toBase, fromBase, fmt, fmtItem, nice };
 })();

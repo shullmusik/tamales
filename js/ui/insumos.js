@@ -211,15 +211,20 @@ TM.views.insumos = (() => {
     if (!i) setTimeout(() => $('#iName').focus(), 260);
   }
 
-  /** Equivalencias de cocina: solo para insumos en gramos o mililitros. */
+  /** Equivalencias de cocina de este insumo: cucharadita, cucharada, taza (g/ml) y puñado, mano (también piezas). */
   function renderKitchen(i) {
     const base = UN.baseOf($('#iUnit').value);
     const wrap = $('#iKitchen');
-    if (base === 'pz') { wrap.hidden = true; return; }
+    const units = UN.kitchenFor(base);
+    if (!units.length) { wrap.hidden = true; return; }
     wrap.hidden = false;
     const k = (i && i.kitchen) || {};
     $('#iKitchenBase').textContent = UN.BASES[base].short;
-    ['cdta', 'cda', 'taza'].forEach((u) => { const inp = $(`#iK_${u}`); inp.value = k[u] || ''; inp.placeholder = UN.KITCHEN[u].factor; });
+    $('#iKitchenRows').innerHTML = units.map((u) => `
+      <label class="field"><input class="field__input" id="iK_${u}" type="number" inputmode="decimal" min="0" step="any" value="${k[u] || ''}" placeholder="${UN.defaultFactor(u, base)}" aria-label="${esc(UN.BASES[base].label)} por ${esc(UN.label(u))}"><span class="field__help">1 ${esc(UN.label(u))}</span></label>`).join('');
+    $('#iKitchenHint').textContent = base === 'pz'
+      ? `Vacío = puñado de ${UN.defaultFactor('punado', 'pz')} piezas, mano de ${UN.defaultFactor('mano', 'pz')}. Ajusta a tu mano: un puñado de chiles de árbol no es lo mismo que uno de hojas.`
+      : `Vacío = equivalencia de agua (5 · 15 · 240) y puñado ${UN.defaultFactor('punado', base)} · mano ${UN.defaultFactor('mano', base)} ${UN.BASES[base].short}. Una taza de harina pesa ~120 g; de manteca ~200 g; un puñado de sal ~40 g.`;
   }
 
   function renderStock(i) {
@@ -258,7 +263,7 @@ TM.views.insumos = (() => {
 
   function readKitchen() {
     const k = {};
-    ['cdta', 'cda', 'taza'].forEach((u) => { const v = Number($(`#iK_${u}`).value); if (v > 0) k[u] = v; });
+    Object.keys(UN.KITCHEN).forEach((u) => { const inp = $(`#iK_${u}`); const v = inp ? Number(inp.value) : 0; if (v > 0) k[u] = v; });
     return k;
   }
 

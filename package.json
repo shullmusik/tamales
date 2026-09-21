@@ -1,6 +1,6 @@
 {
   "name": "cafeteria-lauri",
-  "version": "3.2.0",
+  "version": "3.2.1",
   "private": true,
   "description": "Cafetería Lauri: PWA de recetas, insumos con tickets (OCR), inventario, precios dinámicos, ventas y ganancias. Sin dependencias: HTML + CSS + JS plano.",
   "homepage": "https://shullmusik.github.io/tamales/",
